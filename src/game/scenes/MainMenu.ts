@@ -13,21 +13,21 @@ export class MainMenu extends Scene {
   }
 
   create() {
-    this.background = this.add.image(512, 384, 'background');
+    this.background = this.add.image(500, 1800, 'background');
 
-    this.logo = this.add.image(512, 300, 'logo').setDepth(100);
+    this.logo = this.add.image(500, 300, 'logo').setDepth(100);
 
-    this.playBtn = this.add.text(512, 460, 'Play', {
+    this.playBtn = this.add.text(500, 800, 'Play', {
       fontFamily: 'Arial Black', fontSize: 38, color: '#ffffff',
       stroke: '#000000', strokeThickness: 8,
       align: 'center'
-    }).setOrigin(0.5).setDepth(100).setInteractive({ useHandCursor: true })
+    }).setScale(1.5).setOrigin(0.5).setDepth(100).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.changeScene())
       .on('pointerover', () => {
-        this.playBtn.setScale(1.2); // Increase the scale when hovered
+        this.playBtn.setScale(1.7); // Increase the scale when hovered
       })
       .on('pointerout', () => {
-        this.playBtn.setScale(1); // Reset the scale when not hovered
+        this.playBtn.setScale(1.5); // Reset the scale when not hovered
       });
 
     EventBus.emit('current-scene-ready', this);
