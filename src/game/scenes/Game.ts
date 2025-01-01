@@ -12,10 +12,17 @@ export class Game extends Scene {
   speed: number;
   bullets: Phaser.Physics.Arcade.Group;
   barrels: Phaser.Physics.Arcade.Group;
+  enemies: Phaser.Physics.Arcade.Group;
+  enemySpeed: number = 200;
   barrelSpeed: number = 300;
+  barrelHp: number;
   bulletSpeed: number;
+  gunCount: number = 1;
   fireRate: number;
   lastFired: number;
+  fireRateEvent: Phaser.Time.TimerEvent;
+  enemySpawnEvent: Phaser.Time.TimerEvent;
+  enemySize: number = 2;
 
   constructor() {
     super('Game');
@@ -45,27 +52,29 @@ export class Game extends Scene {
     // Create the character
     this.character = this.add.sprite(500, 1650, 'character');
     this.character.setScale(2.0);
+    this.physics.add.existing(this.character);
 
     // Set up keys
     this.aKey = this.input.keyboard!.addKey('A');
     this.dKey = this.input.keyboard!.addKey('D');
 
-    // Create the bullet group
-    this.bullets = this.physics.add.group({
-      defaultKey: 'bullet',
-      maxSize: 50, // Max bullets allowed
-    });
-
     // Automatically fire bullets at the specified fire rate
-    this.time.addEvent({
+    this.fireRateEvent = this.time.addEvent({
       delay: this.fireRate,
       callback: this.fireBullet,
       callbackScope: this,
       loop: true,
     });
 
-    this.time.addEvent({
+    this.enemySpawnEvent = this.time.addEvent({
       delay: 5000,
+      callback: this.spawnEnemies,
+      callbackScope: this,
+      loop: true,
+    })
+
+    this.time.addEvent({
+      delay: 10000,
       callback: this.generateBarrels,
       callbackScope: this,
       loop: true,
@@ -73,15 +82,31 @@ export class Game extends Scene {
 
     this.bullets = this.physics.add.group({
       defaultKey: 'bullet',
-      maxSize: Infinity, // Max bullets allowed
+      maxSize: Infinity,
     });
 
     this.barrels = this.physics.add.group({
       defaultKey: "barrel",
       maxSize: Infinity,
+      immovable: true
     });
 
-    this.generateBarrels()
+    this.enemies = this.physics.add.group({
+      defaultKey: "enemy",
+      maxSize: Infinity,
+      immovable: true
+    });
+
+    this.generateBarrels();
+    this.spawnEnemies();
+
+    this.physics.add.collider(this.barrels, this.character, this.onBarrelHit, undefined, this);
+
+    this.physics.add.collider(this.barrels, this.bullets, this.onBarrelShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+
+    this.physics.add.collider(this.enemies, this.character, this.onEnemyHit, undefined, this);
+
+    this.physics.add.collider(this.enemies, this.bullets, this.onEnemyShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
 
     EventBus.emit('current-scene-ready', this);
   }
@@ -107,24 +132,109 @@ export class Game extends Scene {
     this.character.x = Phaser.Math.Clamp(this.character.x, 0, this.camera.width);
     this.character.y = Phaser.Math.Clamp(this.character.y, 0, this.camera.height);
 
+    this.barrels.getChildren().forEach((barrel: Phaser.GameObjects.GameObject) => {
+      const barrelHpText = barrel.getData('hpText');
+      if (barrel instanceof Phaser.Physics.Arcade.Sprite) {
+        if (barrelHpText) {
+          if (barrelHpText._text == "0") {
+            barrelHpText.setActive(false).setVisible(false)
+          }
+          barrelHpText.setPosition(barrel.x, barrel.y - barrel.height / 2 + 14);
+        }
+      }
+    });
+
+  }
+
+  onBarrelHit() {
+    console.log('A barrel hit the character!',);
+    this.changeScene();
+  }
+
+  onBarrelShoot(barrel: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject) {
+    const barrelHp = barrel.getData('barrelHp');
+    barrel.setData('barrelHp', barrelHp - 1);
+
+    const barrelHpText = barrel.getData('hpText');
+    if (barrelHpText) {
+      barrelHpText.setText(`${barrel.getData('barrelHp')}`);
+    }
+
+    const barrelSprite = barrel as Phaser.Physics.Arcade.Sprite;
+    const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
+    if (barrel.getData('barrelHp') <= 0) {
+      const barrelPowerUp = barrel.getData("powerUp");
+      console.log(barrelPowerUp);
+
+      if (barrelPowerUp === "fireRate") {
+        this.fireRate = Math.max(400, this.fireRate - 200);
+        if (this.fireRate <= 800 && this.gunCount <= 3) this.gunCount += 1;
+        this.updateFireRateTimer();
+      } else if (barrelPowerUp === "bulletSpeed") {
+        this.bulletSpeed = Math.max(1500, this.bulletSpeed + 200);
+      }
+
+      barrelSprite.setActive(false).setVisible(false).disableBody(true, true);
+    }
+    bulletSprite.setActive(false).setVisible(false);
+  }
+
+  onEnemyShoot(enemy: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject) {
+    const enemySprite = enemy as Phaser.Physics.Arcade.Sprite;
+    const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
+    enemySprite.setActive(false).setVisible(false).disableBody(true, true);
+    bulletSprite.setActive(false).setVisible(false);
+  }
+
+  onEnemyHit() {
+    console.log('An Enemy hit the character!',);
+    this.changeScene();
   }
 
   generateBarrels() {
-    const positions = [
-      { x: window.innerWidth / 3, y: 0 },
-      { x: window.innerWidth, y: 0 }
-    ];
+    const isSmallScreen = window.innerWidth <= 400;
+    const isMediumScreen = window.innerWidth > 400 && window.innerWidth <= 450;
+
+    const positions = isSmallScreen
+      ? [
+        { x: window.innerWidth / 2, y: 0 },
+        { x: window.innerWidth * 2.2, y: 0 },
+      ]
+      : isMediumScreen
+        ? [
+          { x: window.innerWidth / 2, y: 0 },
+          { x: window.innerWidth * 1.9, y: 0 },
+        ]
+        : [
+          { x: window.innerWidth / 3, y: 0 },
+          { x: window.innerWidth, y: 0 },
+        ];
 
     positions.forEach((pos) => this.createBarrel(pos.x, pos.y));
   }
 
   createBarrel(x: number, y: number) {
+    const barrelPowerUp = Math.random() < 0.5 ? "fireRate" : "bulletSpeed";
     const barrel = this.barrels.get(x, y);
     if (barrel) {
+      barrel.setData('barrelHp', Phaser.Math.Between(1, 5));
       barrel
         .setActive(true)
         .setVisible(true)
-        .setScale(8, 3); // Scale barrel to desired size
+        .enableBody()
+        .setScale(8, 3);
+
+      const barrelHpText = this.add.text(barrel.x, barrel.y - barrel.height / 2 - 10, `${barrel.getData('barrelHp')}`, {
+        fontFamily: 'Arial',
+        fontSize: 80,
+        color: '#ff0000',
+        stroke: '#000000',
+        strokeThickness: 2,
+        align: 'center'
+      }).setOrigin(0.5);
+
+      barrel.setData('hpText', barrelHpText);
+      barrel.setData('powerUp', barrelPowerUp)
 
       this.physics.velocityFromAngle(90, this.barrelSpeed, barrel.body.velocity);
 
@@ -134,6 +244,7 @@ export class Game extends Scene {
         (body: { gameObject: Phaser.Physics.Arcade.Sprite }) => {
           if (body.gameObject === barrel) {
             barrel.setActive(false).setVisible(false);
+            barrel.getData('hpText').setVisible(false);
           }
         }
       );
@@ -141,21 +252,95 @@ export class Game extends Scene {
   }
 
   fireBullet() {
-    const bullet = this.bullets.get(this.character.x, this.character.y - this.character.height);
-    if (bullet) {
-      bullet.setActive(true).setVisible(true);
-      this.physics.velocityFromAngle(-90, this.bulletSpeed, bullet.body.velocity);
+    for (let i = 0; i < this.gunCount; i++) {
+      const bullet = this.bullets.get(this.character.x + (i - Math.floor(this.gunCount / 2)) * 20, this.character.y);
+      if (bullet) {
+        bullet.setActive(true).setVisible(true);
+        const angleOffset = (i - Math.floor(this.gunCount / 2)) * 3;
+        this.physics.velocityFromAngle(-90 + angleOffset, this.bulletSpeed, bullet.body.velocity);
 
-      bullet.body.onWorldBounds = true;
-      bullet.body.world.on('worldbounds', (body: { gameObject: Phaser.Physics.Arcade.Sprite; }) => {
-        if (body.gameObject === bullet) {
-          bullet.setActive(false).setVisible(false);
-        }
-      });
+
+        bullet.body.onWorldBounds = true;
+        bullet.body.world.on('worldbounds', (body: { gameObject: Phaser.Physics.Arcade.Sprite; }) => {
+          if (body.gameObject === bullet) {
+            bullet.setActive(false).setVisible(false);
+          }
+        });
+      }
     }
   }
 
+  spawnEnemies() {
+    console.log("fire rate:", this.fireRate);
+    console.log("enemy size:", this.enemySize);
+
+    if (this.fireRate <= 1000) {
+      if (this.gunCount < 3 && this.gunCount > 1) {
+        if (this.enemySize < 25) {
+          this.enemySize += 3;
+        }
+      } else if (this.gunCount >= 3) {
+        if (this.enemySize < 50) {
+          this.enemySize += 4;
+        }
+      }
+    }
+
+    const maxWidth = 10;
+    const spacingX = 50;
+    const spacingY = 50;
+
+    for (let i = 0; i < this.enemySize; i++) {
+      const row = Math.floor(i / maxWidth);
+      const col = i % maxWidth;
+
+      const x = window.innerWidth - col * spacingX;
+      const y = 100 + row * spacingY;
+
+      const enemy = this.enemies.get(x, y);
+
+      if (enemy) {
+        enemy
+          .setActive(true)
+          .setVisible(true)
+          .enableBody()
+          .setScale(2, 2);
+
+        this.physics.velocityFromAngle(90, this.enemySpeed, enemy.body.velocity);
+
+        enemy.body.onWorldBounds = true;
+        enemy.body.world.on(
+          'worldbounds',
+          (body: { gameObject: Phaser.Physics.Arcade.Sprite }) => {
+            if (body.gameObject === enemy) {
+              enemy.setActive(false).setVisible(false);
+            }
+          }
+        );
+      }
+    }
+  }
+
+
+  updateFireRateTimer() {
+    if (this.fireRateEvent) {
+      this.fireRateEvent.remove();
+    }
+
+    this.fireRateEvent = this.time.addEvent({
+      delay: this.fireRate,
+      callback: this.fireBullet,
+      callbackScope: this,
+      loop: true,
+    });
+  }
+
   changeScene() {
+    this.bulletSpeed = 1000;
+    this.fireRate = 1200;
+    this.lastFired = 0;
+    this.gunCount = 1;
+    this.enemySize = 2;
     this.scene.start('GameOver');
   }
 }

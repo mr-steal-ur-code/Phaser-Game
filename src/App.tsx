@@ -7,7 +7,7 @@ function App() {
 
     // Event emitted from the PhaserGame component
     const currentScene = (scene: Phaser.Scene) => {
-        console.log(scene);
+        console.log("scene: ", scene?.scene?.key);
     };
 
     return (
