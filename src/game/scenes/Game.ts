@@ -64,12 +64,15 @@ export class Game extends Scene {
     this.dKey = this.input.keyboard!.addKey('D');
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      this.pointerDown = true;
-      this.pointerX = pointer.x;
+      if (Phaser.Geom.Rectangle.Contains(this.character.getBounds(), pointer.x, pointer.y)) {
+        this.pointerDown = true;
+        this.pointerX = pointer.x;
+      }
     });
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (this.pointerDown) {
+        console.log("x:", pointer);
         this.pointerX = pointer.x;
       }
     });
@@ -133,6 +136,12 @@ export class Game extends Scene {
 
   update(time: number, delta: number) {
     const velocity = this.speed * (delta / 1000); // Calculate velocity based on delta time
+    const smoothingFactor = 0.3;
+
+    if (this.pointerDown) {
+      const targetX = this.pointerX;
+      this.character.x += (targetX - this.character.x) * smoothingFactor;
+    }
 
     // Reset character position
     let dx = 0;
