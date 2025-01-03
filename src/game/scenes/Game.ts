@@ -22,13 +22,16 @@ export class Game extends Scene {
   lastFired: number;
   fireRateEvent: Phaser.Time.TimerEvent;
   enemySpawnEvent: Phaser.Time.TimerEvent;
+  barrelSpawnEvent: Phaser.Time.TimerEvent;
   enemySize: number = 2;
+  difficulty: number = 1;
+  enemiesKilled: number = 0;
 
   constructor() {
     super('Game');
     this.speed = 800; // Character movement speed
     this.bulletSpeed = 1000; // Bullet movement speed
-    this.fireRate = 1200; // Fire rate in milliseconds
+    this.fireRate = 1000; // Fire rate in milliseconds
     this.lastFired = 0;
   }
 
@@ -73,7 +76,7 @@ export class Game extends Scene {
       loop: true,
     })
 
-    this.time.addEvent({
+    this.barrelSpawnEvent = this.time.addEvent({
       delay: 10000,
       callback: this.generateBarrels,
       callbackScope: this,
@@ -164,14 +167,15 @@ export class Game extends Scene {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
     if (barrel.getData('barrelHp') <= 0) {
       const barrelPowerUp = barrel.getData("powerUp");
-      console.log(barrelPowerUp);
 
       if (barrelPowerUp === "fireRate") {
-        this.fireRate = Math.max(400, this.fireRate - 200);
-        if (this.fireRate <= 800 && this.gunCount <= 3) this.gunCount += 1;
+        this.fireRate = Math.max(400, this.fireRate - 50);
+        if (this.fireRate <= 800 && this.gunCount < 2) this.gunCount = 2;
+        if (this.fireRate < 600 && this.gunCount < 3) this.gunCount = 3;
+        if (this.fireRate === 400 && this.gunCount < 4) this.gunCount = 4;
         this.updateFireRateTimer();
       } else if (barrelPowerUp === "bulletSpeed") {
-        this.bulletSpeed = Math.max(1500, this.bulletSpeed + 200);
+        this.bulletSpeed = Math.max(1500, this.bulletSpeed + 100);
       }
 
       barrelSprite.setActive(false).setVisible(false).disableBody(true, true);
@@ -184,6 +188,10 @@ export class Game extends Scene {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
     enemySprite.setActive(false).setVisible(false).disableBody(true, true);
     bulletSprite.setActive(false).setVisible(false);
+    this.enemiesKilled += 1;
+    if (this.enemiesKilled >= (this.difficulty * 2) + 10) {
+      this.nextRound();
+    }
   }
 
   onEnemyHit() {
@@ -217,7 +225,7 @@ export class Game extends Scene {
     const barrelPowerUp = Math.random() < 0.5 ? "fireRate" : "bulletSpeed";
     const barrel = this.barrels.get(x, y);
     if (barrel) {
-      barrel.setData('barrelHp', Phaser.Math.Between(1, 5));
+      barrel.setData('barrelHp', Phaser.Math.Between(this.difficulty, this.difficulty + 3));
       barrel
         .setActive(true)
         .setVisible(true)
@@ -271,18 +279,11 @@ export class Game extends Scene {
   }
 
   spawnEnemies() {
-    console.log("fire rate:", this.fireRate);
-    console.log("enemy size:", this.enemySize);
-
     if (this.fireRate <= 1000) {
       if (this.gunCount < 3 && this.gunCount > 1) {
-        if (this.enemySize < 25) {
-          this.enemySize += 3;
-        }
+        this.enemySize += 3;
       } else if (this.gunCount >= 3) {
-        if (this.enemySize < 50) {
-          this.enemySize += 4;
-        }
+        this.enemySize += 5;
       }
     }
 
@@ -335,12 +336,42 @@ export class Game extends Scene {
     });
   }
 
+  updateBarrelSpawnTimer() {
+    this.barrelSpawnEvent = this.time.addEvent({
+      delay: 10000,
+      callback: this.generateBarrels,
+      callbackScope: this,
+      loop: true,
+    });
+  }
+
+  updateEnemySpawnTimer() {
+    this.enemySpawnEvent = this.time.addEvent({
+      delay: 5000,
+      callback: this.spawnEnemies,
+      callbackScope: this,
+      loop: true,
+    })
+  }
+
+  nextRound() {
+    if (this.difficulty > 10) {
+      this.enemySpeed += 50;
+    }
+    this.enemiesKilled = 0;
+    this.difficulty += 1;
+    this.enemySize = this.difficulty * 2;
+  }
+
   changeScene() {
     this.bulletSpeed = 1000;
-    this.fireRate = 1200;
+    this.fireRate = 1000;
+    this.enemySpeed = 200;
     this.lastFired = 0;
     this.gunCount = 1;
     this.enemySize = 2;
+    this.difficulty = 1;
+    this.enemiesKilled = 0;
     this.scene.start('GameOver');
   }
 }
