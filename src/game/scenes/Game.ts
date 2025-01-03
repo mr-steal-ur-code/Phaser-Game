@@ -54,7 +54,6 @@ export class Game extends Scene {
 
     // Create the character
     this.character = this.add.sprite(500, 1650, 'character');
-    this.character.setScale(2.0);
     this.physics.add.existing(this.character);
 
     // Set up keys
@@ -91,7 +90,7 @@ export class Game extends Scene {
     this.barrels = this.physics.add.group({
       defaultKey: "barrel",
       maxSize: Infinity,
-      immovable: true
+      immovable: true,
     });
 
     this.enemies = this.physics.add.group({
@@ -177,9 +176,10 @@ export class Game extends Scene {
       } else if (barrelPowerUp === "bulletSpeed") {
         this.bulletSpeed = Math.max(1500, this.bulletSpeed + 100);
       }
-
+      this.showPowerUpPopup(barrelSprite.x, barrelSprite.y, barrelPowerUp);
       barrelSprite.setActive(false).setVisible(false).disableBody(true, true);
     }
+
     bulletSprite.setActive(false).setVisible(false);
   }
 
@@ -200,46 +200,34 @@ export class Game extends Scene {
   }
 
   generateBarrels() {
-    const isSmallScreen = window.innerWidth <= 400;
-    const isMediumScreen = window.innerWidth > 400 && window.innerWidth <= 450;
+    const cameraWidth = this.cameras.main.width;
 
-    const positions = isSmallScreen
-      ? [
-        { x: window.innerWidth / 2, y: 0 },
-        { x: window.innerWidth * 2.2, y: 0 },
-      ]
-      : isMediumScreen
-        ? [
-          { x: window.innerWidth / 2, y: 0 },
-          { x: window.innerWidth * 1.9, y: 0 },
-        ]
-        : [
-          { x: window.innerWidth / 3, y: 0 },
-          { x: window.innerWidth, y: 0 },
-        ];
+    const positions = [
+      { x: cameraWidth / 3.6, y: 0 },
+      { x: cameraWidth * .75, y: 0 },
+    ];
 
     positions.forEach((pos) => this.createBarrel(pos.x, pos.y));
   }
 
   createBarrel(x: number, y: number) {
-    const barrelPowerUp = Math.random() < 0.5 ? "fireRate" : "bulletSpeed";
+    const barrelPowerUp = Math.random() < 0.5 || Math.random() > 0.7 ? "fireRate" : "bulletSpeed";
     const barrel = this.barrels.get(x, y);
     if (barrel) {
       barrel.setData('barrelHp', Phaser.Math.Between(this.difficulty, this.difficulty + 3));
       barrel
         .setActive(true)
         .setVisible(true)
-        .enableBody()
-        .setScale(8, 3);
+        .enableBody();
 
       const barrelHpText = this.add.text(barrel.x, barrel.y - barrel.height / 2 - 10, `${barrel.getData('barrelHp')}`, {
         fontFamily: 'Arial',
         fontSize: 80,
         color: '#ff0000',
         stroke: '#000000',
-        strokeThickness: 2,
+        strokeThickness: 3,
         align: 'center'
-      }).setOrigin(0.5);
+      }).setOrigin(.5, -.2);
 
       barrel.setData('hpText', barrelHpText);
       barrel.setData('powerUp', barrelPowerUp)
@@ -287,15 +275,15 @@ export class Game extends Scene {
       }
     }
 
-    const maxWidth = 10;
-    const spacingX = 50;
-    const spacingY = 50;
+    const maxWidth = Math.min(10, Math.floor(this.cameras.main.width / 120));
+    const spacingX = this.cameras.main.width / (maxWidth + 1);
+    const spacingY = 60;
 
     for (let i = 0; i < this.enemySize; i++) {
       const row = Math.floor(i / maxWidth);
       const col = i % maxWidth;
 
-      const x = window.innerWidth - col * spacingX;
+      const x = col * spacingX + spacingX / 2;
       const y = 100 + row * spacingY;
 
       const enemy = this.enemies.get(x, y);
@@ -352,6 +340,26 @@ export class Game extends Scene {
       callbackScope: this,
       loop: true,
     })
+  }
+
+  showPowerUpPopup(x: number, y: number, powerUp: string) {
+    const powerText = powerUp === "fireRate" ? "Fire Rate" : "Bullet Speed";
+    const text = this.add.text(x, y, `+${powerText.toUpperCase()}`, {
+      fontFamily: 'Arial',
+      fontSize: '40px',
+      color: '#fcba03',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: text,
+      y: y - 50,
+      alpha: 0,
+      duration: 2500,
+      ease: 'power2',
+      onComplete: () => text.destroy(),
+    });
   }
 
   nextRound() {
