@@ -4,8 +4,8 @@ import { Scene } from 'phaser';
 export class Game extends Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
   background: Phaser.GameObjects.Image;
-  gameText: Phaser.GameObjects.Text;
-  character: Phaser.GameObjects.Sprite;
+  scoreText: Phaser.GameObjects.Text;
+  character: Phaser.Physics.Arcade.Sprite;
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   aKey: Phaser.Input.Keyboard.Key;
   dKey: Phaser.Input.Keyboard.Key;
@@ -29,6 +29,7 @@ export class Game extends Scene {
   score: number = 0;
   pointerDown: boolean = false;
   pointerX: number;
+  isGameOver: boolean = false;
 
   constructor() {
     super('Game');
@@ -46,7 +47,7 @@ export class Game extends Scene {
     this.background = this.add.image(500, 1420, 'background');
     this.background.setAlpha(0.5);
 
-    this.gameText = this.add.text(500, 50, 'Check this out', {
+    this.scoreText = this.add.text(150, 50, `Score: ${this.score}`, {
       fontFamily: 'Arial Black',
       fontSize: 54,
       color: '#ffffff',
@@ -56,8 +57,7 @@ export class Game extends Scene {
     }).setOrigin(0.5).setDepth(100);
 
     // Create the character
-    this.character = this.add.sprite(500, 1650, 'character');
-    this.physics.add.existing(this.character);
+    this.character = this.physics.add.sprite(500, 1650, 'character');
 
     // Set up keys
     this.aKey = this.input.keyboard!.addKey('A');
@@ -131,10 +131,20 @@ export class Game extends Scene {
 
     this.physics.add.collider(this.enemies, this.bullets, this.onEnemyShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
 
+    this.anims.create({
+      key: 'explode',
+      frames: this.anims.generateFrameNumbers('explosion', { start: 0, end: 15 }),
+      frameRate: 10,
+      hideOnComplete: true,
+    });
+
     EventBus.emit('current-scene-ready', this);
   }
 
   update(time: number, delta: number) {
+    if (this.isGameOver) {
+      return;
+    }
     const velocity = this.speed * (delta / 1000); // Calculate velocity based on delta time
     const smoothingFactor = 0.3;
 
@@ -186,7 +196,7 @@ export class Game extends Scene {
 
   onBarrelHit() {
     console.log('A barrel hit the character!',);
-    this.changeScene();
+    this.endGame();
   }
 
   onBarrelShoot(barrel: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject) {
@@ -212,6 +222,10 @@ export class Game extends Scene {
       } else if (barrelPowerUp === "bulletSpeed") {
         this.bulletSpeed = Math.max(1500, this.bulletSpeed + 100);
       }
+
+      const explosion = this.add.sprite(barrelSprite.x, barrelSprite.y, 'explosion');
+      explosion.play('explode');
+
       this.showPowerUpPopup(barrelSprite.x, barrelSprite.y, barrelPowerUp);
       barrelSprite.setActive(false).setVisible(false).disableBody(true, true);
     }
@@ -222,7 +236,21 @@ export class Game extends Scene {
   onEnemyShoot(enemy: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject) {
     const enemySprite = enemy as Phaser.Physics.Arcade.Sprite;
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
-    enemySprite.setActive(false).setVisible(false).disableBody(true, true);
+
+    this.score += 50;
+    this.scoreText.setText(`Score: ${this.score}`);
+
+    enemySprite.setTexture('bloodsplat');
+    enemySprite.body!.enable = false;
+    this.tweens.add({
+      targets: enemySprite,
+      alpha: 0,
+      scale: 0.8,
+      duration: 600,
+      onComplete: () => {
+        enemySprite.setActive(false).setVisible(false).disableBody(true, true);
+      },
+    });
     bulletSprite.setActive(false).setVisible(false);
     this.enemiesKilled += 1;
     if (this.enemiesKilled >= (this.difficulty * 2) + 10) {
@@ -232,7 +260,7 @@ export class Game extends Scene {
 
   onEnemyHit() {
     console.log('An Enemy hit the character!',);
-    this.changeScene();
+    this.endGame();
   }
 
   generateBarrels() {
@@ -328,8 +356,11 @@ export class Game extends Scene {
         enemy
           .setActive(true)
           .setVisible(true)
-          .enableBody()
-          .setScale(2, 2);
+          .enableBody(true, x, y, true, true)
+          .setAlpha(1)
+          .setScale(2, 2)
+          .setTexture('enemy')
+          .setRotation(0);
 
         this.physics.velocityFromAngle(90, this.enemySpeed, enemy.body.velocity);
 
@@ -390,7 +421,7 @@ export class Game extends Scene {
 
     this.tweens.add({
       targets: text,
-      y: y - 50,
+      y: y - 150,
       alpha: 0,
       duration: 2500,
       ease: 'power2',
@@ -407,6 +438,51 @@ export class Game extends Scene {
     this.enemySize = this.difficulty * 2;
   }
 
+  endGame() {
+    this.character.setVelocity(0, 0);
+    this.isGameOver = true;
+
+    if (this.fireRateEvent) {
+      this.fireRateEvent.destroy();
+    }
+    if (this.enemySpawnEvent) {
+      this.enemySpawnEvent.destroy();
+    }
+    if (this.barrelSpawnEvent) {
+      this.barrelSpawnEvent.destroy();
+    }
+
+    this.bullets.getChildren().forEach((bullet: Phaser.GameObjects.GameObject) => {
+      if (bullet instanceof Phaser.Physics.Arcade.Sprite) {
+        bullet.setActive(false).setVisible(false).disableBody(true, true);
+      }
+    })
+
+    this.enemies.getChildren().forEach((enemy: Phaser.GameObjects.GameObject) => {
+      if (enemy instanceof Phaser.Physics.Arcade.Sprite) {
+        enemy.setVelocity(0, 0);
+      }
+    })
+
+    this.barrels.getChildren().forEach((barrel: Phaser.GameObjects.GameObject) => {
+      if (barrel instanceof Phaser.Physics.Arcade.Sprite) {
+        barrel.setVelocity(0, 0);
+      }
+    })
+
+    const explosion = this.add.sprite(this.character.x, this.character.y, 'explosion');
+
+    explosion.play({ key: 'explode', repeat: -1 });
+
+    this.time.delayedCall(3000, () => {
+      this.changeScene();
+    });
+
+    explosion.on('animationcomplete', () => {
+      explosion.destroy();
+    });
+  }
+
   changeScene() {
     this.bulletSpeed = 1000;
     this.fireRate = 1000;
@@ -417,6 +493,7 @@ export class Game extends Scene {
     this.difficulty = 1;
     this.enemiesKilled = 0;
     this.score = 0;
+    this.isGameOver = false;
     this.scene.start('GameOver');
   }
 }

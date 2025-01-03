@@ -33,6 +33,11 @@ export class Preloader extends Scene {
     this.load.image('character', 'tank.png');
     this.load.image('enemy', 'spider.png');
     this.load.image('bullet', 'bullet.png');
+    this.load.image('bloodsplat', 'bloodsplat.png');
+    this.load.spritesheet('explosion', 'exploding.png', {
+      frameWidth: 120,
+      frameHeight: 120,
+    });
   }
 
   create() {
