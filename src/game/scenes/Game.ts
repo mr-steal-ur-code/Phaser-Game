@@ -26,6 +26,9 @@ export class Game extends Scene {
   enemySize: number = 2;
   difficulty: number = 1;
   enemiesKilled: number = 0;
+  score: number = 0;
+  pointerDown: boolean = false;
+  pointerX: number;
 
   constructor() {
     super('Game');
@@ -59,6 +62,21 @@ export class Game extends Scene {
     // Set up keys
     this.aKey = this.input.keyboard!.addKey('A');
     this.dKey = this.input.keyboard!.addKey('D');
+
+    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.pointerDown = true;
+      this.pointerX = pointer.x;
+    });
+
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (this.pointerDown) {
+        this.pointerX = pointer.x;
+      }
+    });
+
+    this.input.on('pointerup', () => {
+      this.pointerDown = false;
+    });
 
     // Automatically fire bullets at the specified fire rate
     this.fireRateEvent = this.time.addEvent({
@@ -127,6 +145,15 @@ export class Game extends Scene {
       dx += velocity;
     }
 
+    if (this.pointerDown) {
+      const screenMiddle = this.cameras.main.width / 2; // Middle of the screen
+      if (this.pointerX < screenMiddle) {
+        dx -= velocity; // Move left if touch is on the left side
+      } else {
+        dx += velocity; // Move right if touch is on the right side
+      }
+    }
+
     // Move the character
     this.character.x += dx;
 
@@ -190,7 +217,7 @@ export class Game extends Scene {
     bulletSprite.setActive(false).setVisible(false);
     this.enemiesKilled += 1;
     if (this.enemiesKilled >= (this.difficulty * 2) + 10) {
-      this.nextRound();
+      this.upDifficulty();
     }
   }
 
@@ -362,7 +389,7 @@ export class Game extends Scene {
     });
   }
 
-  nextRound() {
+  upDifficulty() {
     if (this.difficulty > 10) {
       this.enemySpeed += 50;
     }
@@ -380,6 +407,7 @@ export class Game extends Scene {
     this.enemySize = 2;
     this.difficulty = 1;
     this.enemiesKilled = 0;
+    this.score = 0;
     this.scene.start('GameOver');
   }
 }
