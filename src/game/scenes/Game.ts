@@ -47,7 +47,7 @@ export class Game extends Scene {
     this.background = this.add.image(500, 1420, 'background');
     this.background.setAlpha(0.5);
 
-    this.scoreText = this.add.text(150, 50, `Score: ${this.score}`, {
+    this.scoreText = this.add.text(175, 50, `Score: ${this.score}`, {
       fontFamily: 'Arial Black',
       fontSize: 54,
       color: '#ffffff',
@@ -213,14 +213,24 @@ export class Game extends Scene {
     if (barrel.getData('barrelHp') <= 0) {
       const barrelPowerUp = barrel.getData("powerUp");
 
+      if (this.fireRate <= 100 && this.barrelSpeed >= 2000 && this.barrelSpawnEvent) {
+        this.barrelSpawnEvent.destroy();
+      }
+
       if (barrelPowerUp === "fireRate") {
-        this.fireRate = Math.max(400, this.fireRate - 50);
+        if (this.enemySpeed >= 400) {
+          this.fireRate = Math.max(100, this.fireRate - 50);
+        } else {
+          this.fireRate = Math.max(400, this.fireRate - 50);
+        }
         if (this.fireRate <= 800 && this.gunCount < 2) this.gunCount = 2;
         if (this.fireRate < 600 && this.gunCount < 3) this.gunCount = 3;
-        if (this.fireRate === 400 && this.gunCount < 4) this.gunCount = 4;
+        if (this.fireRate === 400) {
+          if (this.gunCount < 4) this.gunCount = 4;
+        }
         this.updateFireRateTimer();
       } else if (barrelPowerUp === "bulletSpeed") {
-        this.bulletSpeed = Math.max(1500, this.bulletSpeed + 100);
+        this.bulletSpeed = Math.min(2000, this.bulletSpeed + 300);
       }
 
       const explosion = this.add.sprite(barrelSprite.x, barrelSprite.y, 'explosion');
@@ -275,39 +285,54 @@ export class Game extends Scene {
   }
 
   createBarrel(x: number, y: number) {
-    const barrelPowerUp = Math.random() < 0.5 || Math.random() > 0.7 ? "fireRate" : "bulletSpeed";
-    const barrel = this.barrels.get(x, y);
-    if (barrel) {
-      barrel.setData('barrelHp', Phaser.Math.Between(this.difficulty, this.difficulty + 3));
-      barrel
-        .setActive(true)
-        .setVisible(true)
-        .enableBody();
+    let powerUps = ["fireRate", "bulletSpeed"];
 
-      const barrelHpText = this.add.text(barrel.x, barrel.y - barrel.height / 2 - 10, `${barrel.getData('barrelHp')}`, {
-        fontFamily: 'Arial',
-        fontSize: 80,
-        color: '#ff0000',
-        stroke: '#000000',
-        strokeThickness: 3,
-        align: 'center'
-      }).setOrigin(.5, -.2);
+    if (this.fireRate <= 100) {
+      powerUps = powerUps.filter((powerUp) => powerUp !== "fireRate");
+    }
+    if (this.bulletSpeed >= 2000) {
+      powerUps = powerUps.filter((powerUp) => powerUp !== "bulletSpeed");
+    }
 
-      barrel.setData('hpText', barrelHpText);
-      barrel.setData('powerUp', barrelPowerUp)
+    if (powerUps.length > 0) {
+      const ranNum = Math.random();
+      const barrelPowerUp = powerUps[ranNum < .5 || ranNum > .7 ? 0 : 1];
 
-      this.physics.velocityFromAngle(90, this.barrelSpeed, barrel.body.velocity);
 
-      barrel.body.onWorldBounds = true;
-      barrel.body.world.on(
-        'worldbounds',
-        (body: { gameObject: Phaser.Physics.Arcade.Sprite }) => {
-          if (body.gameObject === barrel) {
-            barrel.setActive(false).setVisible(false);
-            barrel.getData('hpText').setVisible(false);
+      const barrel = this.barrels.get(x, y);
+
+      if (barrel) {
+        barrel.setData('barrelHp', Phaser.Math.Between(this.difficulty, this.difficulty + 2));
+        barrel
+          .setActive(true)
+          .setVisible(true)
+          .enableBody();
+
+        const barrelHpText = this.add.text(barrel.x, barrel.y - barrel.height / 2 - 10, `${barrel.getData('barrelHp')}`, {
+          fontFamily: 'Arial',
+          fontSize: 80,
+          color: '#ff0000',
+          stroke: '#000000',
+          strokeThickness: 3,
+          align: 'center'
+        }).setOrigin(.5, -.2);
+
+        barrel.setData('hpText', barrelHpText);
+        barrel.setData('powerUp', barrelPowerUp)
+
+        this.physics.velocityFromAngle(90, this.barrelSpeed, barrel.body.velocity);
+
+        barrel.body.onWorldBounds = true;
+        barrel.body.world.on(
+          'worldbounds',
+          (body: { gameObject: Phaser.Physics.Arcade.Sprite }) => {
+            if (body.gameObject === barrel) {
+              barrel.setActive(false).setVisible(false);
+              barrel.getData('hpText').setVisible(false);
+            }
           }
-        }
-      );
+        );
+      }
     }
   }
 
@@ -340,7 +365,6 @@ export class Game extends Scene {
     }
 
     const maxWidth = Math.min(10, Math.floor(this.cameras.main.width / 120));
-    console.log("width:", this.cameras.main.width, maxWidth);
 
     const spacingX = this.cameras.main.width / (maxWidth + 1);
     const spacingY = 60;
@@ -349,8 +373,9 @@ export class Game extends Scene {
       const row = Math.floor(i / maxWidth);
       const col = i % maxWidth;
 
-      const x = col * spacingX + spacingX / 2;
-      const y = 100 + row * spacingY;
+      const randomOffset = Phaser.Math.Between(50, 100);
+      const x = col * spacingX + spacingX / 2 + randomOffset;
+      const y = 100 + row * spacingY + randomOffset;
 
       const enemy = this.enemies.get(x, y);
 
@@ -432,7 +457,7 @@ export class Game extends Scene {
   }
 
   upDifficulty() {
-    if (this.difficulty > 10) {
+    if (this.difficulty > 8) {
       this.enemySpeed += 50;
     }
     this.enemiesKilled = 0;
