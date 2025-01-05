@@ -40,7 +40,7 @@ export class Game extends Scene {
   }
 
   create() {
-    // Set up camera and background
+    this.isGameOver = false;
     this.camera = this.cameras.main;
     this.camera.setBackgroundColor("#c6c6c6");
 
@@ -133,7 +133,7 @@ export class Game extends Scene {
 
     this.anims.create({
       key: 'explode',
-      frames: this.anims.generateFrameNumbers('explosion', { start: 0, end: 15 }),
+      frames: this.anims.generateFrameNumbers('explosion', { frames: [0, 1, 2, 3] }),
       frameRate: 10,
       hideOnComplete: true,
     });
@@ -340,6 +340,8 @@ export class Game extends Scene {
     }
 
     const maxWidth = Math.min(10, Math.floor(this.cameras.main.width / 120));
+    console.log("width:", this.cameras.main.width, maxWidth);
+
     const spacingX = this.cameras.main.width / (maxWidth + 1);
     const spacingY = 60;
 
@@ -474,16 +476,13 @@ export class Game extends Scene {
 
     explosion.play({ key: 'explode', repeat: -1 });
 
-    this.time.delayedCall(3000, () => {
+    this.time.delayedCall(2500, () => {
       this.changeScene();
-    });
-
-    explosion.on('animationcomplete', () => {
-      explosion.destroy();
     });
   }
 
   changeScene() {
+    this.isGameOver = false;
     this.bulletSpeed = 1000;
     this.fireRate = 1000;
     this.enemySpeed = 200;
@@ -493,7 +492,7 @@ export class Game extends Scene {
     this.difficulty = 1;
     this.enemiesKilled = 0;
     this.score = 0;
-    this.isGameOver = false;
     this.scene.start('GameOver');
+    this.pointerDown = false;
   }
 }
