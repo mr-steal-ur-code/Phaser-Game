@@ -7,7 +7,6 @@ export class Preloader extends Scene {
 
   init() {
     //  We loaded this image in our Boot Scene, so we can display it here
-    this.add.image(512, 384, 'background');
 
     //  A simple progress bar. This is the outline of the bar.
     this.add.rectangle(512, 384, 468, 32).setStrokeStyle(1, 0xffffff);
@@ -25,8 +24,19 @@ export class Preloader extends Scene {
   }
 
   preload() {
-    //  Load the assets for the game - Replace with your own assets
-    this.load.setPath('assets');
+    //  Load the assets for the game
+    this.load.setPath('assets/music');
+
+    this.load.audio("main_game_music", "the_plan_upbeat.ogg");
+
+    this.load.setPath('assets/sfx');
+    this.load.audio("shoot", "shoot.wav");
+    this.load.audio("splat", "bug_splat.mp3");
+    this.load.audio("explode", "explode.mp3");
+    this.load.audio("power_up", "power_up.mp3");
+    this.load.audio("menu_hover", "menu_hover.mp3");
+
+    this.load.setPath('assets/sprites');
 
     this.load.image('logo', 'logo.png');
     this.load.image('barrel', 'barrel.png');

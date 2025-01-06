@@ -24,7 +24,8 @@ export class MainMenu extends Scene {
     }).setScale(1.5).setOrigin(0.5).setDepth(100).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.changeScene())
       .on('pointerover', () => {
-        this.playBtn.setScale(1.7); // Increase the scale when hovered
+        this.playBtn.setScale(1.7);
+        this.sound.play('menu_hover', { volume: .2 });
       })
       .on('pointerout', () => {
         this.playBtn.setScale(1.5); // Reset the scale when not hovered

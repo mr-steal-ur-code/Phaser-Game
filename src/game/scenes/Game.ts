@@ -47,6 +47,11 @@ export class Game extends Scene {
     this.background = this.add.image(500, 1420, 'background');
     this.background.setAlpha(0.5);
 
+    this.sound.play("main_game_music", {
+      loop: true,
+      volume: 1
+    })
+
     this.scoreText = this.add.text(175, 50, `Score: ${this.score}`, {
       fontFamily: 'Arial Black',
       fontSize: 54,
@@ -211,6 +216,10 @@ export class Game extends Scene {
     const barrelSprite = barrel as Phaser.Physics.Arcade.Sprite;
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
     if (barrel.getData('barrelHp') <= 0) {
+      this.sound.play('power_up', {
+        loop: false,
+        volume: .5
+      });
       const barrelPowerUp = barrel.getData("powerUp");
 
       if (this.fireRate <= 100 && this.barrelSpeed >= 2000 && this.barrelSpawnEvent) {
@@ -250,6 +259,10 @@ export class Game extends Scene {
     this.score += 50;
     this.scoreText.setText(`Score: ${this.score}`);
 
+    this.sound.play("splat", {
+      loop: false,
+      volume: 1
+    })
     enemySprite.setTexture('bloodsplat');
     enemySprite.body!.enable = false;
     this.tweens.add({
@@ -337,6 +350,10 @@ export class Game extends Scene {
   }
 
   fireBullet() {
+    this.sound.play('shoot', {
+      loop: false,
+      volume: .1
+    });
     for (let i = 0; i < this.gunCount; i++) {
       const bullet = this.bullets.get(this.character.x + (i - Math.floor(this.gunCount / 2)) * 20, this.character.y);
       if (bullet) {
@@ -500,13 +517,20 @@ export class Game extends Scene {
     const explosion = this.add.sprite(this.character.x, this.character.y, 'explosion');
 
     explosion.play({ key: 'explode', repeat: -1 });
-
+    this.sound.stopByKey("main_game_music");
+    this.sound.play("explode", {
+      loop: true,
+      volume: 1,
+      duration: 500,
+      rate: .80
+    })
     this.time.delayedCall(2500, () => {
       this.changeScene();
     });
   }
 
   changeScene() {
+    this.sound.stopByKey("explode");
     this.isGameOver = false;
     this.bulletSpeed = 1000;
     this.fireRate = 1000;
