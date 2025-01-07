@@ -1,9 +1,16 @@
+import { AnimationManager } from '../../controllers/animationManager';
+import { BarrelManager } from '../../controllers/barrelManager';
+import { EnemyManager } from '../../controllers/enemyManager';
+import { InputManager } from '../../controllers/inputManager';
 import { SoundManager } from '../../controllers/soundManager';
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
 
 export class Game extends Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
+  inputManager: InputManager;
+  barrelManager: BarrelManager;
+  enemyManager: EnemyManager;
   background: Phaser.GameObjects.Image;
   scoreText: Phaser.GameObjects.Text;
   character: Phaser.Physics.Arcade.Sprite;
@@ -30,8 +37,6 @@ export class Game extends Scene {
   difficulty: number = 1;
   enemiesKilled: number = 0;
   score: number = 0;
-  pointerDown: boolean = false;
-  pointerX: number;
   isGameOver: boolean = false;
 
   constructor() {
@@ -50,10 +55,7 @@ export class Game extends Scene {
     this.background = this.add.image(500, 1420, 'background');
     this.background.setAlpha(0.5);
 
-    this.sound.play("main_game_music", {
-      loop: true,
-      volume: 1
-    })
+    SoundManager.playGameMusic(this)
 
     this.scoreText = this.add.text(250, 50, `Score: ${this.score}`, {
       fontFamily: 'Arial Black',
@@ -67,27 +69,7 @@ export class Game extends Scene {
     // Create the character
     this.character = this.physics.add.sprite(500, 1650, 'character');
 
-    // Set up keys
-    this.aKey = this.input.keyboard!.addKey('A');
-    this.dKey = this.input.keyboard!.addKey('D');
-
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      const bottomThreshold = this.cameras.main.height * 0.6;
-      if (pointer.y >= bottomThreshold) {
-        this.pointerDown = true;
-        this.pointerX = pointer.x;
-      }
-    });
-
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (this.pointerDown) {
-        this.pointerX = pointer.x;
-      }
-    });
-
-    this.input.on('pointerup', () => {
-      this.pointerDown = false;
-    });
+    this.inputManager = new InputManager(this);
 
     // Automatically fire bullets at the specified fire rate
     this.fireRateEvent = this.time.addEvent({
@@ -99,14 +81,14 @@ export class Game extends Scene {
 
     this.enemySpawnEvent = this.time.addEvent({
       delay: 5000,
-      callback: this.spawnEnemies,
+      callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, this.fireRate, this.gunCount, this.enemySize),
       callbackScope: this,
       loop: true,
     })
 
     this.barrelSpawnEvent = this.time.addEvent({
       delay: 10000,
-      callback: this.generateBarrels,
+      callback: () => this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.difficulty),
       callbackScope: this,
       loop: true,
     });
@@ -128,8 +110,11 @@ export class Game extends Scene {
       immovable: true
     });
 
-    this.time.delayedCall(500, this.generateBarrels, [], this);
-    this.time.delayedCall(500, this.spawnEnemies, [], this);
+    this.barrelManager = new BarrelManager(this.barrels, this.barrelSpeed);
+    this.enemyManager = new EnemyManager(this.enemies, this.enemySpeed)
+
+    this.time.delayedCall(500, () => this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.difficulty), [], this);
+    this.time.delayedCall(500, this.enemyManager.spawnEnemies, [], this);
 
     this.barrelCollider = this.physics.add.collider(this.barrels, this.character, this.onBarrelHit, undefined, this);
 
@@ -137,23 +122,10 @@ export class Game extends Scene {
 
     this.enemyCollider = this.physics.add.collider(this.enemies, this.character, this.onEnemyHit, undefined, this);
 
-
     this.physics.add.collider(this.enemies, this.bullets, this.onEnemyShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
 
-    this.anims.create({
-      key: 'explode',
-      frames: Array.from({ length: 10 }, (_, i) => ({
-        key: `Circle_explosion${i + 1}`,
-      })),
-      frameRate: 15
-    });
-
-    this.anims.create({
-      key: 'enemyWalk',
-      frames: this.anims.generateFrameNumbers('enemy', { start: 4, end: 9 }),
-      frameRate: 10,
-      repeat: -1,
-    });
+    AnimationManager.explodeAnimation(this)
+    AnimationManager.walkAnimation(this)
 
     EventBus.emit('current-scene-ready', this);
   }
@@ -165,8 +137,8 @@ export class Game extends Scene {
     const velocity = this.speed * (delta / 1000); // Calculate velocity based on delta time
     const smoothingFactor = 0.3;
 
-    if (this.pointerDown) {
-      const targetX = this.pointerX;
+    if (this.inputManager.getPointerDown()) {
+      const targetX = this.inputManager.getPointerX();
       this.character.x += (targetX - this.character.x) * smoothingFactor;
     }
 
@@ -174,41 +146,43 @@ export class Game extends Scene {
     let dx = 0;
 
     // Check key presses and adjust character movement
-    if (this.aKey.isDown) {
+    if (this.inputManager.isKeyPressed("A")) {
       dx -= velocity;
     }
-    if (this.dKey.isDown) {
+    if (this.inputManager.isKeyPressed('D')) {
       dx += velocity;
     }
 
-    if (this.pointerDown) {
-      const screenMiddle = this.cameras.main.width / 2; // Middle of the screen
-      if (this.pointerX < screenMiddle) {
-        dx -= velocity; // Move left if touch is on the left side
+    if (this.inputManager.getPointerDown()) {
+      const screenMiddle = this.cameras.main.width / 2;
+      if (this.inputManager.getPointerX() < screenMiddle) {
+        dx -= velocity;
       } else {
-        dx += velocity; // Move right if touch is on the right side
+        dx += velocity;
       }
     }
-
     // Move the character
     this.character.x += dx;
-
     // Clamp the character within the bounds of the game
     this.character.x = Phaser.Math.Clamp(this.character.x, 0, this.camera.width);
     this.character.y = Phaser.Math.Clamp(this.character.y, 0, this.camera.height);
 
-    this.barrels.getChildren().forEach((barrel: Phaser.GameObjects.GameObject) => {
-      const barrelHpText = barrel.getData('hpText');
+    this.barrels.getChildren().forEach((barrel) => {
       if (barrel instanceof Phaser.Physics.Arcade.Sprite) {
+        const barrelHpText = barrel.getData('hpText');
+
         if (barrelHpText) {
-          if (barrelHpText._text == "0") {
-            barrelHpText.setActive(false).setVisible(false)
+          const currentHp = parseInt(barrelHpText._text, 10);
+          if (currentHp <= 0) {
+            barrelHpText.setActive(false).setVisible(false);
+            barrel.setActive(false).setVisible(false);
+            this.barrels.killAndHide(barrel);
+          } else {
+            barrelHpText.setPosition(barrel.x, barrel.y - barrel.height / 2 + 14);
           }
-          barrelHpText.setPosition(barrel.x, barrel.y - barrel.height / 2 + 14);
         }
       }
     });
-
   }
 
   onBarrelHit() {
@@ -254,9 +228,9 @@ export class Game extends Scene {
         this.bulletSpeed = Math.min(2000, this.bulletSpeed + 300);
       }
 
-      this.playExplosion(barrelSprite.x, barrelSprite.y, false)
+      AnimationManager.playExplosion(this, barrelSprite.x, barrelSprite.y, false)
 
-      this.showPowerUpPopup(barrelSprite.x, barrelSprite.y, barrelPowerUp);
+      AnimationManager.showPowerupPopup(this, barrelSprite.x, barrelSprite.y, barrelPowerUp);
       barrelSprite.setActive(false).setVisible(false).disableBody(true, true);
     }
 
@@ -264,31 +238,14 @@ export class Game extends Scene {
   }
 
   onEnemyShoot(enemy: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject) {
-    const enemySprite = enemy as Phaser.Physics.Arcade.Sprite;
-    const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
-
     this.score += 50;
     this.scoreText.setText(`Score: ${this.score}`);
 
-    this.sound.play("splat", {
-      loop: false,
-      volume: 1
-    })
+    SoundManager.playBloodsplatSound(this)
 
-    const bloodSplat = this.add.sprite(enemySprite.x, enemySprite.y, 'bloodsplat');
-    bloodSplat.setScale(1.5).setAlpha(1);
+    AnimationManager.bloodsplatAnimation(this, enemy as Phaser.Physics.Arcade.Sprite);
 
-    this.tweens.add({
-      targets: bloodSplat,
-      alpha: 0,
-      scale: 0.8,
-      duration: 600,
-      onComplete: () => {
-        bloodSplat.destroy();
-      },
-    });
-    enemySprite.body!.enable = false;
-    enemySprite.setActive(false).setVisible(false).disableBody(true, true);
+    const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
     bulletSprite.setActive(false).setVisible(false);
 
     this.enemiesKilled += 1;
@@ -305,74 +262,8 @@ export class Game extends Scene {
     this.endGame();
   }
 
-  generateBarrels() {
-    const cameraWidth = this.cameras.main.width;
-
-    const positions = [
-      { x: cameraWidth / 3.6, y: 0 },
-      { x: cameraWidth * .75, y: 0 },
-    ];
-
-    positions.forEach((pos) => this.createBarrel(pos.x, pos.y));
-  }
-
-  createBarrel(x: number, y: number) {
-    let powerUps = ["fireRate", "bulletSpeed"];
-
-    if (this.fireRate <= 100) {
-      powerUps = powerUps.filter((powerUp) => powerUp !== "fireRate");
-    }
-    if (this.bulletSpeed >= 2000) {
-      powerUps = powerUps.filter((powerUp) => powerUp !== "bulletSpeed");
-    }
-
-    if (powerUps.length > 0) {
-      const ranNum = Math.random();
-      const barrelPowerUp = powerUps[ranNum < .5 || ranNum > .7 ? 0 : 1];
-
-
-      const barrel = this.barrels.get(x, y);
-
-      if (barrel) {
-        barrel.setData('barrelHp', Phaser.Math.Between(this.difficulty, this.difficulty + 2));
-        barrel
-          .setActive(true)
-          .setVisible(true)
-          .enableBody();
-
-        const barrelHpText = this.add.text(barrel.x, barrel.y - barrel.height / 2 - 10, `${barrel.getData('barrelHp')}`, {
-          fontFamily: 'Arial',
-          fontSize: 80,
-          color: '#ff0000',
-          stroke: '#000000',
-          strokeThickness: 3,
-          align: 'center'
-        }).setOrigin(.5, -.2);
-
-        barrel.setData('hpText', barrelHpText);
-        barrel.setData('powerUp', barrelPowerUp)
-
-        this.physics.velocityFromAngle(90, this.barrelSpeed, barrel.body.velocity);
-
-        barrel.body.onWorldBounds = true;
-        barrel.body.world.on(
-          'worldbounds',
-          (body: { gameObject: Phaser.Physics.Arcade.Sprite }) => {
-            if (body.gameObject === barrel) {
-              barrel.setActive(false).setVisible(false);
-              barrel.getData('hpText').setVisible(false);
-            }
-          }
-        );
-      }
-    }
-  }
-
   fireBullet() {
-    this.sound.play('shoot', {
-      loop: false,
-      volume: .1
-    });
+    SoundManager.playShootSound(this)
     for (let i = 0; i < this.gunCount; i++) {
       const bullet = this.bullets.get(this.character.x + (i - Math.floor(this.gunCount / 2)) * 20, this.character.y);
       if (bullet) {
@@ -391,59 +282,6 @@ export class Game extends Scene {
     }
   }
 
-  spawnEnemies() {
-    if (this.fireRate <= 1000) {
-      if (this.gunCount < 3 && this.gunCount > 1) {
-        this.enemySize += 3;
-      } else if (this.gunCount >= 3) {
-        this.enemySize += 5;
-      }
-    }
-
-    const maxWidth = Math.min(10, Math.floor(this.cameras.main.width / 120));
-
-    const spacingX = this.cameras.main.width / (maxWidth + 1);
-    const spacingY = 60;
-
-    for (let i = 0; i < this.enemySize; i++) {
-      const row = Math.floor(i / maxWidth);
-      const col = i % maxWidth;
-
-      const randomOffset = Phaser.Math.Between(50, 100);
-      const x = col * spacingX + spacingX / 2 + randomOffset;
-      const y = 100 + row * spacingY + randomOffset;
-
-      const enemy = this.enemies.get(x, y);
-
-      if (enemy) {
-        enemy
-          .setActive(true)
-          .setVisible(true)
-          .enableBody(true, x, y, true, true)
-          .setAlpha(1)
-          .setScale(2.5)
-          .setTexture('enemy')
-          .setAngle(180);
-
-        enemy.body.setCircle(25);
-
-        this.physics.velocityFromAngle(90, this.enemySpeed, enemy.body.velocity);
-
-        enemy.play('enemyWalk');
-        enemy.body.onWorldBounds = true;
-        enemy.body.world.on(
-          'worldbounds',
-          (body: { gameObject: Phaser.Physics.Arcade.Sprite }) => {
-            if (body.gameObject === enemy) {
-              enemy.setActive(false).setVisible(false);
-            }
-          }
-        );
-      }
-    }
-  }
-
-
   updateFireRateTimer() {
     if (this.fireRateEvent) {
       this.fireRateEvent.remove();
@@ -460,7 +298,7 @@ export class Game extends Scene {
   updateBarrelSpawnTimer() {
     this.barrelSpawnEvent = this.time.addEvent({
       delay: 10000,
-      callback: this.generateBarrels,
+      callback: () => this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.difficulty),
       callbackScope: this,
       loop: true,
     });
@@ -469,30 +307,10 @@ export class Game extends Scene {
   updateEnemySpawnTimer() {
     this.enemySpawnEvent = this.time.addEvent({
       delay: 5000,
-      callback: this.spawnEnemies,
+      callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, this.fireRate, this.gunCount, this.enemySize),
       callbackScope: this,
       loop: true,
     })
-  }
-
-  showPowerUpPopup(x: number, y: number, powerUp: string) {
-    const powerText = powerUp === "fireRate" ? "Fire Rate" : "Bullet Speed";
-    const text = this.add.text(x, y, `+${powerText.toUpperCase()}`, {
-      fontFamily: 'Arial',
-      fontSize: '40px',
-      color: '#fcba03',
-      stroke: '#000000',
-      strokeThickness: 2,
-    }).setOrigin(0.5);
-
-    this.tweens.add({
-      targets: text,
-      y: y - 150,
-      alpha: 0,
-      duration: 2500,
-      ease: 'power2',
-      onComplete: () => text.destroy(),
-    });
   }
 
   upDifficulty() {
@@ -536,25 +354,11 @@ export class Game extends Scene {
       }
     })
 
-    this.playExplosion(this.character.x, this.character.y, true)
+    AnimationManager.playExplosion(this, this.character.x, this.character.y, true)
     this.sound.stopByKey("main_game_music");
     SoundManager.playExplosionSound(this, 4)
     this.time.delayedCall(2500, () => {
       this.changeScene();
-    });
-  }
-
-  playExplosion(x: number, y: number, repeat: boolean) {
-    const explosionSprite = this.add.sprite(x, y, 'Circle_explosion1');
-    explosionSprite.setScale(1.5);
-
-    explosionSprite.play({
-      key: 'explode',
-      repeat: repeat ? -1 : 0,
-    });
-
-    explosionSprite.on('animationcomplete', () => {
-      explosionSprite.setVisible(false);
     });
   }
 
@@ -571,6 +375,5 @@ export class Game extends Scene {
     this.enemiesKilled = 0;
     this.score = 0;
     this.scene.start('GameOver');
-    this.pointerDown = false;
   }
 }
