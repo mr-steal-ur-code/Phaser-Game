@@ -14,6 +14,8 @@ export class Game extends Scene {
   bullets: Phaser.Physics.Arcade.Group;
   barrels: Phaser.Physics.Arcade.Group;
   enemies: Phaser.Physics.Arcade.Group;
+  barrelCollider: Phaser.Physics.Arcade.Collider | null;
+  enemyCollider: Phaser.Physics.Arcade.Collider | null;
   enemySpeed: number = 200;
   barrelSpeed: number = 300;
   barrelHp: number;
@@ -34,7 +36,7 @@ export class Game extends Scene {
 
   constructor() {
     super('Game');
-    this.speed = 800; // Character movement speed
+    this.speed = 1000; // Character movement speed
     this.bulletSpeed = 1000; // Bullet movement speed
     this.fireRate = 1000; // Fire rate in milliseconds
     this.lastFired = 0;
@@ -53,7 +55,7 @@ export class Game extends Scene {
       volume: 1
     })
 
-    this.scoreText = this.add.text(175, 50, `Score: ${this.score}`, {
+    this.scoreText = this.add.text(250, 50, `Score: ${this.score}`, {
       fontFamily: 'Arial Black',
       fontSize: 54,
       color: '#ffffff',
@@ -70,7 +72,8 @@ export class Game extends Scene {
     this.dKey = this.input.keyboard!.addKey('D');
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (Phaser.Geom.Rectangle.Contains(this.character.getBounds(), pointer.x, pointer.y)) {
+      const bottomThreshold = this.cameras.main.height * 0.6;
+      if (pointer.y >= bottomThreshold) {
         this.pointerDown = true;
         this.pointerX = pointer.x;
       }
@@ -78,7 +81,6 @@ export class Game extends Scene {
 
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (this.pointerDown) {
-        console.log("x:", pointer);
         this.pointerX = pointer.x;
       }
     });
@@ -129,11 +131,12 @@ export class Game extends Scene {
     this.time.delayedCall(500, this.generateBarrels, [], this);
     this.time.delayedCall(500, this.spawnEnemies, [], this);
 
-    this.physics.add.collider(this.barrels, this.character, this.onBarrelHit, undefined, this);
+    this.barrelCollider = this.physics.add.collider(this.barrels, this.character, this.onBarrelHit, undefined, this);
 
     this.physics.add.collider(this.barrels, this.bullets, this.onBarrelShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
 
-    this.physics.add.collider(this.enemies, this.character, this.onEnemyHit, undefined, this);
+    this.enemyCollider = this.physics.add.collider(this.enemies, this.character, this.onEnemyHit, undefined, this);
+
 
     this.physics.add.collider(this.enemies, this.bullets, this.onEnemyShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
 
@@ -209,6 +212,9 @@ export class Game extends Scene {
   }
 
   onBarrelHit() {
+    if (this.barrelCollider)
+      this.physics.world.removeCollider(this.barrelCollider);
+    this.barrelCollider = null;
     console.log('A barrel hit the character!',);
     this.endGame();
   }
@@ -292,6 +298,9 @@ export class Game extends Scene {
   }
 
   onEnemyHit() {
+    if (this.enemyCollider)
+      this.physics.world.removeCollider(this.enemyCollider);
+    this.enemyCollider = null;
     console.log('An Enemy hit the character!',);
     this.endGame();
   }
@@ -412,9 +421,11 @@ export class Game extends Scene {
           .setVisible(true)
           .enableBody(true, x, y, true, true)
           .setAlpha(1)
-          .setScale(2.6)
+          .setScale(2.5)
           .setTexture('enemy')
           .setAngle(180);
+
+        enemy.body.setCircle(25);
 
         this.physics.velocityFromAngle(90, this.enemySpeed, enemy.body.velocity);
 
