@@ -3,6 +3,7 @@ import { BarrelManager } from '../../controllers/barrelManager';
 import { EnemyManager } from '../../controllers/enemyManager';
 import { InputManager } from '../../controllers/inputManager';
 import { SoundManager } from '../../controllers/soundManager';
+import { CST } from '../CST';
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
 
@@ -21,30 +22,36 @@ export class Game extends Scene {
   enemies: Phaser.Physics.Arcade.Group;
   barrelCollider: Phaser.Physics.Arcade.Collider | null;
   enemyCollider: Phaser.Physics.Arcade.Collider | null;
-  enemySpeed: number = 200;
   barrelSpeed: number = 300;
   barrelHp: number;
   bulletSpeed: number;
-  gunCount: number = 1;
+  gunCount: number;
   fireRate: number;
   fireRateEvent: Phaser.Time.TimerEvent;
   enemySpawnEvent: Phaser.Time.TimerEvent;
   barrelSpawnEvent: Phaser.Time.TimerEvent;
-  enemySize: number = 2;
-  difficulty: number = 1;
-  enemiesKilled: number = 0;
+  enemySize: number;
+  difficulty: number;
+  enemiesKilled: number;
+  totalEnemiesKilled: number;
   score: number = 0;
   isGameOver: boolean = false;
 
   constructor() {
-    super('Game');
-    this.speed = 1000; // Character movement speed
-    this.bulletSpeed = 1000; // Bullet movement speed
-    this.fireRate = 1000; // Fire rate in milliseconds
+    super(CST.SCENES.GAME);
+    this.speed = 1000;
   }
 
   create() {
     this.isGameOver = false;
+    this.bulletSpeed = 1000;
+    this.fireRate = 1000;
+    this.gunCount = 1;
+    this.enemySize = 2;
+    this.difficulty = 1;
+    this.enemiesKilled = 0;
+    this.totalEnemiesKilled = 0;
+    this.score = 0;
     this.camera = this.cameras.main;
     this.camera.setBackgroundColor("#c6c6c6");
 
@@ -107,7 +114,8 @@ export class Game extends Scene {
     });
 
     this.barrelManager = new BarrelManager(this.barrels, this.barrelSpeed);
-    this.enemyManager = new EnemyManager(this.enemies, this.enemySpeed)
+
+    this.enemyManager = new EnemyManager(this.enemies, 200)
 
     this.time.delayedCall(500, () => this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.difficulty), [], this);
     this.time.delayedCall(500, this.enemyManager.spawnEnemies, [], this);
@@ -204,12 +212,12 @@ export class Game extends Scene {
       SoundManager.playPowerupSound(this);
       const barrelPowerUp = barrel.getData("powerUp");
 
-      if (this.fireRate <= 100 && this.barrelSpeed >= 2000 && this.barrelSpawnEvent) {
-        this.barrelSpawnEvent.destroy();
+      if (this.fireRate <= 100 && this.bulletSpeed >= 2000 && this.barrelSpawnEvent) {
+        this.barrelSpawnEvent.remove();
       }
 
       if (barrelPowerUp === "fireRate") {
-        if (this.enemySpeed >= 400) {
+        if (this.enemyManager.getEnemySpeed() >= 400) {
           this.fireRate = Math.max(100, this.fireRate - 50);
         } else {
           this.fireRate = Math.max(400, this.fireRate - 50);
@@ -245,6 +253,7 @@ export class Game extends Scene {
     bulletSprite.setActive(false).setVisible(false);
 
     this.enemiesKilled += 1;
+    this.totalEnemiesKilled += 1;
     if (this.enemiesKilled >= (this.difficulty * 2) + 10) {
       this.upDifficulty();
     }
@@ -294,28 +303,9 @@ export class Game extends Scene {
     });
   }
 
-
-  updateBarrelSpawnTimer() {
-    this.barrelSpawnEvent = this.time.addEvent({
-      delay: 10000,
-      callback: () => this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.difficulty),
-      callbackScope: this,
-      loop: true,
-    });
-  }
-
-  updateEnemySpawnTimer() {
-    this.enemySpawnEvent = this.time.addEvent({
-      delay: 5000,
-      callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, this.fireRate, this.gunCount, this.enemySize),
-      callbackScope: this,
-      loop: true,
-    })
-  }
-
   upDifficulty() {
-    if (this.difficulty > 8) {
-      this.enemySpeed += 50;
+    if (this.difficulty > 6) {
+      this.enemyManager.setEnemySpeed(50);
     }
     this.enemiesKilled = 0;
     this.difficulty += 1;
@@ -358,21 +348,15 @@ export class Game extends Scene {
     this.sound.stopByKey("main_game_music");
     SoundManager.playExplosionSound(this, 4)
     this.time.delayedCall(2500, () => {
-      this.changeScene();
+      this.endScene();
     });
   }
 
-  changeScene() {
+  endScene() {
     this.sound.stopByKey("explode");
-    this.isGameOver = false;
-    this.bulletSpeed = 1000;
-    this.fireRate = 1000;
-    this.enemySpeed = 200;
-    this.gunCount = 1;
-    this.enemySize = 2;
-    this.difficulty = 1;
-    this.enemiesKilled = 0;
-    this.score = 0;
-    this.scene.start('GameOver');
+    this.scene.start(CST.SCENES.GAMEOVER, {
+      score: this.score,
+      enemiesKilled: this.totalEnemiesKilled
+    });
   }
 }

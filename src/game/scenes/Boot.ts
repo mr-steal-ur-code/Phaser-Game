@@ -1,4 +1,5 @@
 import { Scene } from 'phaser';
+import { CST } from '../CST';
 
 export class Boot extends Scene {
   constructor() {
@@ -13,6 +14,6 @@ export class Boot extends Scene {
   }
 
   create() {
-    this.scene.start('Preloader');
+    this.scene.start(CST.SCENES.PRELOADER);
   }
 }

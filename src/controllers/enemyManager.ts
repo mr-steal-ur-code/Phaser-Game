@@ -30,6 +30,7 @@ export class EnemyManager {
       const y = 100 + row * spacingY + randomOffset;
 
       const enemy = this.enemies.get(x, y);
+      const ranNum = Phaser.Math.Between(5, 25)
 
       if (enemy) {
         enemy
@@ -43,10 +44,28 @@ export class EnemyManager {
 
         enemy.body.setCircle(25);
 
-        scene.physics.velocityFromAngle(90, this.enemySpeed, enemy.body.velocity);
+        let oscillationTime = 0;
+
+        scene.time.addEvent({
+          delay: 16,
+          callback: () => {
+            oscillationTime += 0.016;
+            const angle = 90 + ranNum * Math.sin(oscillationTime);
+            scene.physics.velocityFromAngle(angle, this.enemySpeed, enemy.body.velocity);
+          },
+          loop: true,
+        });
 
         enemy.play('enemyWalk');
       }
     }
+  }
+
+  public setEnemySpeed(speed: number) {
+    this.enemySpeed += speed;
+  }
+
+  public getEnemySpeed() {
+    return this.enemySpeed;
   }
 }

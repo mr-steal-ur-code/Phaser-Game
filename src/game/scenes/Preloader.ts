@@ -1,8 +1,9 @@
 import { Scene } from 'phaser';
+import { CST } from '../CST';
 
 export class Preloader extends Scene {
   constructor() {
-    super('Preloader');
+    super(CST.SCENES.PRELOADER);
   }
 
   init() {
@@ -58,6 +59,6 @@ export class Preloader extends Scene {
     //  For example, you can define global animations here, so we can use them in other scenes.
 
     //  Move to the MainMenu. You could also swap this for a Scene Transition, such as a camera fade.
-    this.scene.start('MainMenu');
+    this.scene.start(CST.SCENES.MAINMENU);
   }
 }
