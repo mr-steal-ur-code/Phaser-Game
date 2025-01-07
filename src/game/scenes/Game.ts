@@ -15,8 +15,6 @@ export class Game extends Scene {
   scoreText: Phaser.GameObjects.Text;
   character: Phaser.Physics.Arcade.Sprite;
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
-  aKey: Phaser.Input.Keyboard.Key;
-  dKey: Phaser.Input.Keyboard.Key;
   speed: number;
   bullets: Phaser.Physics.Arcade.Group;
   barrels: Phaser.Physics.Arcade.Group;
@@ -29,7 +27,6 @@ export class Game extends Scene {
   bulletSpeed: number;
   gunCount: number = 1;
   fireRate: number;
-  lastFired: number;
   fireRateEvent: Phaser.Time.TimerEvent;
   enemySpawnEvent: Phaser.Time.TimerEvent;
   barrelSpawnEvent: Phaser.Time.TimerEvent;
@@ -44,7 +41,6 @@ export class Game extends Scene {
     this.speed = 1000; // Character movement speed
     this.bulletSpeed = 1000; // Bullet movement speed
     this.fireRate = 1000; // Fire rate in milliseconds
-    this.lastFired = 0;
   }
 
   create() {
@@ -263,37 +259,41 @@ export class Game extends Scene {
   }
 
   fireBullet() {
-    SoundManager.playShootSound(this)
+    SoundManager.playShootSound(this);
     for (let i = 0; i < this.gunCount; i++) {
       const bullet = this.bullets.get(this.character.x + (i - Math.floor(this.gunCount / 2)) * 20, this.character.y);
       if (bullet) {
         bullet.setActive(true).setVisible(true);
         const angleOffset = (i - Math.floor(this.gunCount / 2)) * 3;
         this.physics.velocityFromAngle(-90 + angleOffset, this.bulletSpeed, bullet.body.velocity);
-
-
-        bullet.body.onWorldBounds = true;
-        bullet.body.world.on('worldbounds', (body: { gameObject: Phaser.Physics.Arcade.Sprite; }) => {
-          if (body.gameObject === bullet) {
-            bullet.setActive(false).setVisible(false);
-          }
-        });
       }
     }
   }
 
   updateFireRateTimer() {
+    let timeUntilNextFire = this.fireRate;
+
     if (this.fireRateEvent) {
+      const elapsed = this.fireRate - (this.fireRateEvent.getElapsed() % this.fireRate);
+      timeUntilNextFire = Math.min(elapsed, this.fireRate);
       this.fireRateEvent.remove();
     }
 
-    this.fireRateEvent = this.time.addEvent({
-      delay: this.fireRate,
-      callback: this.fireBullet,
+    this.time.addEvent({
+      delay: timeUntilNextFire,
+      callback: () => {
+        this.fireBullet();
+        this.fireRateEvent = this.time.addEvent({
+          delay: this.fireRate,
+          callback: this.fireBullet,
+          callbackScope: this,
+          loop: true,
+        });
+      },
       callbackScope: this,
-      loop: true,
     });
   }
+
 
   updateBarrelSpawnTimer() {
     this.barrelSpawnEvent = this.time.addEvent({
@@ -368,7 +368,6 @@ export class Game extends Scene {
     this.bulletSpeed = 1000;
     this.fireRate = 1000;
     this.enemySpeed = 200;
-    this.lastFired = 0;
     this.gunCount = 1;
     this.enemySize = 2;
     this.difficulty = 1;
