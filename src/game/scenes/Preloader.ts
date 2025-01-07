@@ -41,13 +41,16 @@ export class Preloader extends Scene {
     this.load.image('logo', 'logo.png');
     this.load.image('barrel', 'barrel.png');
     this.load.image('character', 'tank.png');
-    this.load.image('enemy', 'spider.png');
+    this.load.spritesheet('enemy', 'spider.png', {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
     this.load.image('bullet', 'bullet.png');
     this.load.image('bloodsplat', 'bloodsplat.png');
-    this.load.spritesheet('explosion', 'exploding.png', {
-      frameWidth: 120,
-      frameHeight: 120,
-    });
+    this.load.setPath('assets/sprites/Circle_explosion')
+    for (let i = 1; i <= 10; i++) {
+      this.load.image(`Circle_explosion${i}`, `Circle_explosion${i}.png`);
+    }
   }
 
   create() {

@@ -1,3 +1,4 @@
+import { SoundManager } from '../../controllers/soundManager';
 import { EventBus } from '../EventBus';
 import { Scene } from 'phaser';
 
@@ -125,8 +126,8 @@ export class Game extends Scene {
       immovable: true
     });
 
-    this.generateBarrels();
-    this.spawnEnemies();
+    this.time.delayedCall(500, this.generateBarrels, [], this);
+    this.time.delayedCall(500, this.spawnEnemies, [], this);
 
     this.physics.add.collider(this.barrels, this.character, this.onBarrelHit, undefined, this);
 
@@ -138,9 +139,17 @@ export class Game extends Scene {
 
     this.anims.create({
       key: 'explode',
-      frames: this.anims.generateFrameNumbers('explosion', { frames: [0, 1, 2, 3] }),
+      frames: Array.from({ length: 10 }, (_, i) => ({
+        key: `Circle_explosion${i + 1}`,
+      })),
+      frameRate: 15
+    });
+
+    this.anims.create({
+      key: 'enemyWalk',
+      frames: this.anims.generateFrameNumbers('enemy', { start: 4, end: 9 }),
       frameRate: 10,
-      hideOnComplete: true,
+      repeat: -1,
     });
 
     EventBus.emit('current-scene-ready', this);
@@ -216,10 +225,7 @@ export class Game extends Scene {
     const barrelSprite = barrel as Phaser.Physics.Arcade.Sprite;
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
     if (barrel.getData('barrelHp') <= 0) {
-      this.sound.play('power_up', {
-        loop: false,
-        volume: .5
-      });
+      SoundManager.playPowerupSound(this);
       const barrelPowerUp = barrel.getData("powerUp");
 
       if (this.fireRate <= 100 && this.barrelSpeed >= 2000 && this.barrelSpawnEvent) {
@@ -242,8 +248,7 @@ export class Game extends Scene {
         this.bulletSpeed = Math.min(2000, this.bulletSpeed + 300);
       }
 
-      const explosion = this.add.sprite(barrelSprite.x, barrelSprite.y, 'explosion');
-      explosion.play('explode');
+      this.playExplosion(barrelSprite.x, barrelSprite.y, false)
 
       this.showPowerUpPopup(barrelSprite.x, barrelSprite.y, barrelPowerUp);
       barrelSprite.setActive(false).setVisible(false).disableBody(true, true);
@@ -263,18 +268,23 @@ export class Game extends Scene {
       loop: false,
       volume: 1
     })
-    enemySprite.setTexture('bloodsplat');
-    enemySprite.body!.enable = false;
+
+    const bloodSplat = this.add.sprite(enemySprite.x, enemySprite.y, 'bloodsplat');
+    bloodSplat.setScale(1.5).setAlpha(1);
+
     this.tweens.add({
-      targets: enemySprite,
+      targets: bloodSplat,
       alpha: 0,
       scale: 0.8,
       duration: 600,
       onComplete: () => {
-        enemySprite.setActive(false).setVisible(false).disableBody(true, true);
+        bloodSplat.destroy();
       },
     });
+    enemySprite.body!.enable = false;
+    enemySprite.setActive(false).setVisible(false).disableBody(true, true);
     bulletSprite.setActive(false).setVisible(false);
+
     this.enemiesKilled += 1;
     if (this.enemiesKilled >= (this.difficulty * 2) + 10) {
       this.upDifficulty();
@@ -402,12 +412,13 @@ export class Game extends Scene {
           .setVisible(true)
           .enableBody(true, x, y, true, true)
           .setAlpha(1)
-          .setScale(2, 2)
+          .setScale(2.6)
           .setTexture('enemy')
-          .setRotation(0);
+          .setAngle(180);
 
         this.physics.velocityFromAngle(90, this.enemySpeed, enemy.body.velocity);
 
+        enemy.play('enemyWalk');
         enemy.body.onWorldBounds = true;
         enemy.body.world.on(
           'worldbounds',
@@ -514,18 +525,25 @@ export class Game extends Scene {
       }
     })
 
-    const explosion = this.add.sprite(this.character.x, this.character.y, 'explosion');
-
-    explosion.play({ key: 'explode', repeat: -1 });
+    this.playExplosion(this.character.x, this.character.y, true)
     this.sound.stopByKey("main_game_music");
-    this.sound.play("explode", {
-      loop: true,
-      volume: 1,
-      duration: 500,
-      rate: .80
-    })
+    SoundManager.playExplosionSound(this, 4)
     this.time.delayedCall(2500, () => {
       this.changeScene();
+    });
+  }
+
+  playExplosion(x: number, y: number, repeat: boolean) {
+    const explosionSprite = this.add.sprite(x, y, 'Circle_explosion1');
+    explosionSprite.setScale(1.5);
+
+    explosionSprite.play({
+      key: 'explode',
+      repeat: repeat ? -1 : 0,
+    });
+
+    explosionSprite.on('animationcomplete', () => {
+      explosionSprite.setVisible(false);
     });
   }
 
