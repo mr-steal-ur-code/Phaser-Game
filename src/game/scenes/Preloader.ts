@@ -46,6 +46,15 @@ export class Preloader extends Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    this.load.spritesheet('boss', 'giant_spider.png', {
+      frameWidth: 120,
+      frameHeight: 80,
+    });
+    this.load.spritesheet('bossShoot', 'giant_spider.png', {
+      frameWidth: 110,
+      frameHeight: 74,
+    });
+    this.load.image("web_shot", "web_shot.png");
     this.load.image('bullet', 'bullet.png');
     this.load.image('bloodsplat', 'bloodsplat.png');
     this.load.setPath('assets/sprites/Circle_explosion')

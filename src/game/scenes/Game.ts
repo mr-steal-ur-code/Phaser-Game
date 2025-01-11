@@ -5,9 +5,8 @@ import { InputManager } from '../../controllers/inputManager';
 import { SoundManager } from '../../controllers/soundManager';
 import { CST } from '../CST';
 import { EventBus } from '../EventBus';
-import { Scene } from 'phaser';
 
-export class Game extends Scene {
+export class Game extends Phaser.Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
   inputManager: InputManager;
   barrelManager: BarrelManager;
@@ -31,34 +30,86 @@ export class Game extends Scene {
   enemySpawnEvent: Phaser.Time.TimerEvent;
   barrelSpawnEvent: Phaser.Time.TimerEvent;
   enemySize: number;
-  difficulty: number;
   enemiesKilled: number;
   totalEnemiesKilled: number;
   score: number = 0;
   isGameOver: boolean = false;
+  level: number;
+  maxEnemySpeed: number = 1200;
+  maxBarrelCount: number = 2;
+  barrelsDestroyed: number;
+  accumulatedTime: number = 0;
+
+  enemyCountPerLevel: { [key: number]: number } = {
+    1: 7,
+    2: 10,
+    3: 15,
+    4: 18,
+    5: 23,
+    6: 28,
+    7: 34,
+    8: 45,
+    9: 60
+  }
 
   constructor() {
     super(CST.SCENES.GAME);
     this.speed = 1000;
   }
 
-  create() {
+  create(data: {
+    bulletSpeed: number, fireRate: number, gunCount: number, totalEnemiesKilled: number, level: number;
+    score: number
+  }) {
     this.isGameOver = false;
-    this.bulletSpeed = 1000;
-    this.fireRate = 1000;
-    this.gunCount = 1;
-    this.enemySize = 2;
-    this.difficulty = 1;
+    this.bulletSpeed = data?.bulletSpeed || 1000;
+    this.fireRate = data?.fireRate || 1000;
+    this.gunCount = data?.gunCount || 1;
     this.enemiesKilled = 0;
-    this.totalEnemiesKilled = 0;
-    this.score = 0;
+    this.totalEnemiesKilled = data?.totalEnemiesKilled || 0;
+    this.score = data?.score || 0;
+    this.level = data?.level || 1;
     this.camera = this.cameras.main;
     this.camera.setBackgroundColor("#c6c6c6");
+    this.enemySize = this.enemyCountPerLevel[this.level] || this.level * 10;
+    this.barrelsDestroyed = 0;
+
 
     this.background = this.add.image(500, 1420, 'background');
     this.background.setAlpha(0.5);
 
-    SoundManager.playGameMusic(this)
+    SoundManager.playGameMusic(this);
+
+    const levelText = this.add
+      .text(this.camera.width / 2, -100, `Level ${this.level}`, {
+        fontFamily: "Arial Black",
+        fontSize: "120px",
+        color: "#ffffff",
+        stroke: "#800080",
+        strokeThickness: 8,
+        align: "center",
+      })
+      .setOrigin(0.5);
+
+    this.tweens.add({
+      targets: levelText,
+      y: this.camera.height / 2,
+      duration: 800,
+      ease: "Power2",
+      onComplete: () => {
+        this.time.delayedCall(1600, () => {
+          this.tweens.add({
+            targets: levelText,
+            y: this.camera.height + 100,
+            duration: 800,
+            ease: "Power2",
+            onComplete: () => {
+              levelText.destroy();
+            },
+          });
+        });
+      },
+    });
 
     this.scoreText = this.add.text(250, 50, `Score: ${this.score}`, {
       fontFamily: 'Arial Black',
@@ -70,31 +121,26 @@ export class Game extends Scene {
     }).setOrigin(0.5).setDepth(100);
 
     // Create the character
-    this.character = this.physics.add.sprite(500, 1650, 'character');
+    this.character = this.physics.add.sprite(500, 1700, 'character');
 
     this.inputManager = new InputManager(this);
 
     // Automatically fire bullets at the specified fire rate
-    this.fireRateEvent = this.time.addEvent({
-      delay: this.fireRate,
-      callback: this.fireBullet,
-      callbackScope: this,
-      loop: true,
-    });
+    this.time.delayedCall(4000, () => {
+      this.fireRateEvent = this.time.addEvent({
+        delay: this.fireRate,
+        callback: this.fireBullet,
+        callbackScope: this,
+        loop: true,
+      })
+    })
 
     this.enemySpawnEvent = this.time.addEvent({
       delay: 5000,
-      callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, this.fireRate, this.gunCount, this.enemySize),
+      callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, this.enemySize),
       callbackScope: this,
       loop: true,
     })
-
-    this.barrelSpawnEvent = this.time.addEvent({
-      delay: 10000,
-      callback: () => this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.difficulty),
-      callbackScope: this,
-      loop: true,
-    });
 
     this.bullets = this.physics.add.group({
       defaultKey: 'bullet',
@@ -103,13 +149,13 @@ export class Game extends Scene {
 
     this.barrels = this.physics.add.group({
       defaultKey: "barrel",
-      maxSize: Infinity,
+      maxSize: this.maxBarrelCount,
       immovable: true,
     });
 
     this.enemies = this.physics.add.group({
       defaultKey: "enemy",
-      maxSize: Infinity,
+      maxSize: this.enemySize,
       immovable: true
     });
 
@@ -117,8 +163,11 @@ export class Game extends Scene {
 
     this.enemyManager = new EnemyManager(this.enemies, 200)
 
-    this.time.delayedCall(500, () => this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.difficulty), [], this);
-    this.time.delayedCall(500, this.enemyManager.spawnEnemies, [], this);
+    this.time.delayedCall(7000, () => {
+      const remainingBarrels = this.maxBarrelCount - this.barrelsDestroyed;
+      this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.level, remainingBarrels)
+    }, [], this);
+    this.time.delayedCall(100, this.enemyManager.spawnEnemies, [], this);
 
     this.barrelCollider = this.physics.add.collider(this.barrels, this.character, this.onBarrelHit, undefined, this);
 
@@ -138,6 +187,29 @@ export class Game extends Scene {
     if (this.isGameOver) {
       return;
     }
+
+    this.accumulatedTime += delta;
+
+    if (this.accumulatedTime >= 500) {
+      this.accumulatedTime = 0;
+      this.barrels.getChildren().forEach((barrel: Phaser.GameObjects.GameObject) => {
+        if (barrel instanceof Phaser.Physics.Arcade.Sprite) {
+          if (barrel.y > this.cameras.main.height + barrel.height) {
+            this.barrelManager.recycleBarrel(barrel);
+            const remainingBarrels = this.maxBarrelCount - this.barrelsDestroyed;
+            this.time.delayedCall(5000, () => {
+              this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.level, remainingBarrels)
+            }, [], this);
+          }
+
+          const barrelHpText = barrel.getData("hpText") as Phaser.GameObjects.Text | undefined;
+          if (barrelHpText) {
+            barrelHpText.setPosition(barrel.x, barrel.y - barrel.height / 2 - 10);
+          }
+        }
+      });
+    }
+
     const velocity = this.speed * (delta / 1000); // Calculate velocity based on delta time
     const smoothingFactor = 0.3;
 
@@ -209,12 +281,9 @@ export class Game extends Scene {
     const barrelSprite = barrel as Phaser.Physics.Arcade.Sprite;
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
     if (barrel.getData('barrelHp') <= 0) {
+      this.barrelsDestroyed += 1;
       SoundManager.playPowerupSound(this);
       const barrelPowerUp = barrel.getData("powerUp");
-
-      if (this.fireRate <= 100 && this.bulletSpeed >= 2000 && this.barrelSpawnEvent) {
-        this.barrelSpawnEvent.remove();
-      }
 
       if (barrelPowerUp === "fireRate") {
         if (this.enemyManager.getEnemySpeed() >= 400) {
@@ -242,20 +311,69 @@ export class Game extends Scene {
   }
 
   onEnemyShoot(enemy: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject) {
-    this.score += 50;
-    this.scoreText.setText(`Score: ${this.score}`);
-
-    SoundManager.playBloodsplatSound(this)
-
-    AnimationManager.bloodsplatAnimation(this, enemy as Phaser.Physics.Arcade.Sprite);
-
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
     bulletSprite.setActive(false).setVisible(false);
 
-    this.enemiesKilled += 1;
-    this.totalEnemiesKilled += 1;
-    if (this.enemiesKilled >= (this.difficulty * 2) + 10) {
-      this.upDifficulty();
+    if (enemy.getData("canBeHit")) {
+      this.score += 50;
+      this.scoreText.setText(`Score: ${this.score}`);
+
+      SoundManager.playBloodsplatSound(this)
+
+      AnimationManager.bloodsplatAnimation(this, enemy as Phaser.Physics.Arcade.Sprite);
+
+      this.enemiesKilled += 1;
+      this.totalEnemiesKilled += 1;
+
+      if (this.enemySpawnEvent) {
+        this.enemySpawnEvent.destroy();
+
+        this.enemySpawnEvent = this.time.addEvent({
+          delay: 100,
+          callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, (this.enemySize - this.enemiesKilled)),
+          callbackScope: this,
+          loop: true,
+        })
+      }
+
+      if (this.enemiesKilled >= this.enemySize) {
+        const levelCompleteText = this.add
+          .text(this.camera.width / 2, -100, `Level ${this.level} \nComplete`, {
+            fontFamily: "Arial Black",
+            fontSize: "120px",
+            color: "#ffffff",
+            stroke: "#800080",
+            strokeThickness: 8,
+            align: "left",
+          })
+          .setOrigin(0.5);
+
+        this.tweens.add({
+          targets: levelCompleteText,
+          y: this.camera.height / 2,
+          duration: 400,
+          ease: "Power2",
+          onComplete: () => {
+            this.time.delayedCall(900, () => {
+              this.tweens.add({
+                targets: levelCompleteText,
+                y: this.camera.height + 100,
+                duration: 400,
+                ease: "Power2",
+                onComplete: () => {
+                  levelCompleteText.destroy();
+                },
+              });
+            });
+          },
+        });
+
+        if (this.level % 5 === 0) {
+          this.time.delayedCall(2500, this.bossScene, [], this);
+        } else {
+          this.time.delayedCall(2500, this.nextLevel, [], this);
+        }
+      }
     }
   }
 
@@ -303,15 +421,6 @@ export class Game extends Scene {
     });
   }
 
-  upDifficulty() {
-    if (this.difficulty > 6) {
-      this.enemyManager.setEnemySpeed(50);
-    }
-    this.enemiesKilled = 0;
-    this.difficulty += 1;
-    this.enemySize = this.difficulty * 2;
-  }
-
   endGame() {
     this.character.setVelocity(0, 0);
     this.isGameOver = true;
@@ -332,17 +441,9 @@ export class Game extends Scene {
       }
     })
 
-    this.enemies.getChildren().forEach((enemy: Phaser.GameObjects.GameObject) => {
-      if (enemy instanceof Phaser.Physics.Arcade.Sprite) {
-        enemy.setVelocity(0, 0);
-      }
-    })
+    this.enemyManager.freezeEnemies()
 
-    this.barrels.getChildren().forEach((barrel: Phaser.GameObjects.GameObject) => {
-      if (barrel instanceof Phaser.Physics.Arcade.Sprite) {
-        barrel.setVelocity(0, 0);
-      }
-    })
+    this.barrelManager.freezeBarrels();
 
     AnimationManager.playExplosion(this, this.character.x, this.character.y, true)
     this.sound.stopByKey("main_game_music");
@@ -357,6 +458,34 @@ export class Game extends Scene {
     this.scene.start(CST.SCENES.GAMEOVER, {
       score: this.score,
       enemiesKilled: this.totalEnemiesKilled
+    });
+  }
+
+  nextLevel() {
+    this.sound.stopAll();
+    if (this.level > 5 && this.enemyManager.getEnemySpeed() < this.maxEnemySpeed) {
+      this.enemyManager.setEnemySpeed(100);
+    }
+    this.enemiesKilled = 0;
+    this.scene.start(CST.SCENES.GAME, {
+      bulletSpeed: this.bulletSpeed,
+      fireRate: this.fireRate,
+      gunCount: this.gunCount,
+      totalEnemiesKilled: this.totalEnemiesKilled,
+      score: this.score,
+      level: this.level + 1
+    });
+  }
+
+  bossScene() {
+    this.sound.stopAll();
+    this.scene.start(CST.SCENES.BOSS, {
+      bulletSpeed: this.bulletSpeed,
+      fireRate: this.fireRate,
+      gunCount: this.gunCount,
+      totalEnemiesKilled: this.totalEnemiesKilled,
+      score: this.score,
+      level: this.level
     });
   }
 }

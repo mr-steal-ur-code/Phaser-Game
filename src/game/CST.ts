@@ -4,6 +4,7 @@ export const CST = {
     TITLE: "Title",
     GAME: "Game",
     MAINMENU: "MainMenu",
-    GAMEOVER: "GameOver"
+    GAMEOVER: "GameOver",
+    BOSS: "Boss"
   }
 }

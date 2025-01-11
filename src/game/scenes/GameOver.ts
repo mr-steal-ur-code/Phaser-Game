@@ -81,6 +81,6 @@ export class GameOver extends Phaser.Scene {
   }
 
   restart() {
-    this.scene.start(CST.SCENES.GAME)
+    this.scene.start(CST.SCENES.GAME, {})
   }
 }

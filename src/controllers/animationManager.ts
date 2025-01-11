@@ -32,6 +32,24 @@ export class AnimationManager {
     });
   }
 
+  static bossMoveAnimation(scene: Phaser.Scene) {
+    scene.anims.create({
+      key: 'bossMove',
+      frames: scene.anims.generateFrameNumbers('boss', { frames: [8, 9, 10] }),
+      frameRate: 10,
+      repeat: -1,
+    });
+  }
+
+  static bossAttackAnimation(scene: Phaser.Scene) {
+    scene.anims.create({
+      key: 'bossAttack',
+      frames: scene.anims.generateFrameNumbers('bossShoot', { start: 18, end: 24 }),
+      frameRate: 8,
+      repeat: -1,
+    });
+  }
+
   static bloodsplatAnimation(scene: Phaser.Scene, enemySprite: Phaser.Physics.Arcade.Sprite) {
     const bloodSplat = scene.add.sprite(enemySprite.x, enemySprite.y, 'bloodsplat');
     bloodSplat.setScale(1.5).setAlpha(1);
