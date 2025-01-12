@@ -36,7 +36,7 @@ export class EnemyManager {
           .setAngle(180)
           .setData("canBeHit", false);
 
-        enemy.body.setCircle(25);
+        enemy.body.setCircle(24, 0, 5);
 
         let oscillationTime = 0;
 

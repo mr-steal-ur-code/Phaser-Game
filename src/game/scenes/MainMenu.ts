@@ -7,7 +7,6 @@ export class MainMenu extends Scene {
   background: GameObjects.Image;
   logo: GameObjects.Image;
   playBtn: GameObjects.Text;
-  logoTween: Phaser.Tweens.Tween | null;
 
   constructor() {
     super('MainMenu');
@@ -16,17 +15,32 @@ export class MainMenu extends Scene {
   create() {
     this.background = this.add.image(500, 1800, 'background');
 
-    this.logo = this.add.image(500, 300, 'logo').setDepth(100);
+    this.logo = this.add.image(500, this.cameras.main.height - 200, 'logo').setDepth(100);
 
-    this.playBtn = this.add.text(500, 800, 'Play', {
-      fontFamily: 'Arial Black', fontSize: 60, color: '#ffffff',
-      stroke: '#000000', strokeThickness: 8,
+    this.add.text(500, 300, "Last Galaga Invaders", {
+      fontSize: 70,
+      strokeThickness: 10,
+      stroke: "#000",
+      color: "#b9b9b9",
+      fontFamily: "fantasy"
+    }).setOrigin(0.5).setDepth(150);
+
+    this.playBtn = this.add.text(500, 900, 'Play', {
+      fontFamily: 'sans-serif', fontSize: 70, color: 'white',
+      stroke: 'green', strokeThickness: 6,
       align: 'center'
-    }).setScale(1.5).setOrigin(0.5).setDepth(100).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.changeScene())
+    }).setScale(1.5).setOrigin(0.5).setDepth(150).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => {
+        try {
+          this.sound.unlock();
+          this.changeScene();
+        } catch (error) {
+          alert(`error: , ${error}`);
+          console.error('Error in changeScene:', error);
+        }
+      })
       .on('pointerover', () => {
         this.playBtn.setStyle({ stroke: "#800080" });
-        this.sound.play('menu_hover', { volume: .2 });
       })
       .on('pointerout', () => {
         this.playBtn.setStyle({ stroke: "#000000" });
@@ -36,39 +50,6 @@ export class MainMenu extends Scene {
   }
 
   changeScene() {
-    if (this.logoTween) {
-      this.logoTween.stop();
-      this.logoTween = null;
-    }
-
     this.scene.start(CST.SCENES.GAME);
-  }
-
-  moveLogo(vueCallback: ({ x, y }: { x: number, y: number }) => void) {
-    if (this.logoTween) {
-      if (this.logoTween.isPlaying()) {
-        this.logoTween.pause();
-      }
-      else {
-        this.logoTween.play();
-      }
-    }
-    else {
-      this.logoTween = this.tweens.add({
-        targets: this.logo,
-        x: { value: 750, duration: 3000, ease: 'Back.easeInOut' },
-        y: { value: 80, duration: 1500, ease: 'Sine.easeOut' },
-        yoyo: true,
-        repeat: -1,
-        onUpdate: () => {
-          if (vueCallback) {
-            vueCallback({
-              x: Math.floor(this.logo.x),
-              y: Math.floor(this.logo.y)
-            });
-          }
-        }
-      });
-    }
   }
 }

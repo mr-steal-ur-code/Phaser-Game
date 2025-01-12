@@ -134,6 +134,7 @@ export class BossManager {
     if (currentHp > 0) {
       this.boss?.setData("hp", currentHp - hp);
     }
+    return;
   }
 
 }

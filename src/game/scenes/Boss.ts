@@ -2,12 +2,14 @@ import { AnimationManager } from "../../controllers/animationManager";
 import { BossManager } from "../../controllers/bossManager";
 import { InputManager } from "../../controllers/inputManager";
 import { SoundManager } from "../../controllers/soundManager";
+import { clearBullets } from "../../utils/clearBullets";
+import { clearWebShots } from "../../utils/clearWebShots";
 import { CST } from "../CST";
 import { EventBus } from "../EventBus";
+import { bossClearText } from "../text/bossText";
 
 
 export class Boss extends Phaser.Scene {
-  private backgroundBar: Phaser.GameObjects.Graphics;
   private healthBar: Phaser.GameObjects.Graphics;
   camera: Phaser.Cameras.Scene2D.Camera;
   webCollider: Phaser.Physics.Arcade.Collider | null;
@@ -30,10 +32,7 @@ export class Boss extends Phaser.Scene {
     super(CST.SCENES.BOSS)
   }
 
-  create(data: {
-    bulletSpeed: number, fireRate: number, gunCount: number, totalEnemiesKilled: number, level: number;
-    score: number
-  }) {
+  create(data: SceneData) {
     this.camera = this.cameras.main;
     this.bulletSpeed = data?.bulletSpeed || 1000;
     this.fireRate = data?.fireRate || 1000;
@@ -42,7 +41,7 @@ export class Boss extends Phaser.Scene {
     this.score = data?.score || 0;
     this.level = data?.level || 5;
 
-    this.character = this.physics.add.sprite(500, 1650, 'character');
+    this.character = this.physics.add.sprite(data?.charX || 500, data?.charY || 1650, 'character');
 
     this.bullets = this.physics.add.group({
       defaultKey: 'bullet',
@@ -54,9 +53,9 @@ export class Boss extends Phaser.Scene {
       maxSize: Infinity,
     });
 
-    this.backgroundBar = this.add.graphics().fillStyle(0xff0000, 1).fillRect(0, 20, this.cameras.main.width, 20);
+    this.add?.graphics()?.fillStyle(0xff0000, 1)?.fillRect(0, 20, this.cameras.main.width, 20);
 
-    this.healthBar = this.add.graphics().fillStyle(0x00ff00, 1).fillRect(0, 20, this.cameras.main.width, 20);
+    this.healthBar = this.add?.graphics()?.fillStyle(0x00ff00, 1)?.fillRect(0, 20, this.cameras.main.width, 20);
 
     this.bossManager = new BossManager(this.webShots)
     this.bossManager.spawnBoss(this, this.cameras.main.width, this.level);
@@ -157,19 +156,25 @@ export class Boss extends Phaser.Scene {
     console.log('A web hit the character!',);
   }
 
-  onBossShoot(_boss: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject,) {
+  onBossShoot(_boss: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject) {
     const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
-    const bossHp = this.bossManager.getBossHp();
+    console.log("boss hp: ", this.bossManager.getBossHp());
 
-    bulletSprite.setActive(false).setVisible(false);
-    this.bossManager.setBossHp(1);
 
-    if (bossHp <= 0) {
+    bulletSprite.destroy();
+
+    if (this.bossManager.getBossHp() <= 0) {
       if (this.fireRateEvent) {
         this.fireRateEvent.destroy();
       }
+
       this.bossManager.bossDeath(this);
-      this.time.delayedCall(5000, () => this.nextLevel());
+
+      bossClearText(this);
+      this.time.delayedCall(2500, () => this.nextLevel());
+    } else {
+      this.bossManager.setBossHp(1);
+      return;
     }
   }
 
@@ -196,16 +201,8 @@ export class Boss extends Phaser.Scene {
       this.fireRateEvent.destroy();
     }
 
-    this.bullets.getChildren().forEach((bullet: Phaser.GameObjects.GameObject) => {
-      if (bullet instanceof Phaser.Physics.Arcade.Sprite) {
-        bullet.setActive(false).setVisible(false).disableBody(true, true);
-      }
-    });
-    this.webShots.getChildren().forEach((webShot: Phaser.GameObjects.GameObject) => {
-      if (webShot instanceof Phaser.Physics.Arcade.Sprite) {
-        webShot.setActive(false).setVisible(false).disableBody(true, true);
-      }
-    });
+    clearBullets(this.bullets);
+    clearWebShots(this.webShots);
     AnimationManager.playExplosion(this, this.character.x, this.character.y, true);
     this.sound.stopByKey("main_game_music");
     SoundManager.playExplosionSound(this, 4)

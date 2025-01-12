@@ -5,6 +5,7 @@ export class GameOver extends Phaser.Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
   gameOverText: Phaser.GameObjects.Text;
   restartBtn: Phaser.GameObjects.Text;
+  mainMenuBtn: Phaser.GameObjects.Text;
 
   constructor() {
     super(CST.SCENES.GAMEOVER);
@@ -12,14 +13,14 @@ export class GameOver extends Phaser.Scene {
 
   create(data: { score: number, enemiesKilled: number }) {
     this.camera = this.cameras.main
-    this.camera.setBackgroundColor("#c6c6c6");
+    this.camera.setBackgroundColor("#1e2a38");
 
     this.gameOverText = this.add
       .text(this.camera.width / 2, this.camera.height / 2, "Game Over", {
-        fontFamily: "Arial Black",
+        fontFamily: "sans-serif",
         fontSize: "72px",
-        color: "#ffffff",
-        stroke: "#ff0000",
+        color: "#d0f0ff",
+        stroke: "#0d4b6d",
         strokeThickness: 10,
         align: "center",
       })
@@ -38,8 +39,8 @@ export class GameOver extends Phaser.Scene {
     this.add
       .text(this.camera.width / 2, (this.camera.height / 2) - 300, `Final Score: ${data.score || 0}`, {
         fontSize: "60px",
-        color: "#ed78b2",
-        stroke: "#e5003f",
+        color: "#adebeb",
+        stroke: "#036666",
         strokeThickness: 4,
       })
       .setOrigin(0.5);
@@ -47,18 +48,18 @@ export class GameOver extends Phaser.Scene {
     this.add
       .text(this.camera.width / 2, (this.camera.height / 2) - 400, `Enemies Killed: ${data.enemiesKilled || 0}`, {
         fontSize: "60px",
-        color: "#78b2ed",
-        stroke: "#003fe5",
+        color: "#b8d8f8",
+        stroke: "#0a417a",
         strokeThickness: 4,
       })
       .setOrigin(0.5);
 
     this.restartBtn = this.add
-      .text(this.camera.width / 2, (this.camera.height / 2) + 300, "Restart", {
-        fontFamily: "Arial Black",
+      .text(this.camera.width / 2, (this.camera.height / 2 + 200) + 300, "Restart", {
+        fontFamily: "sans-serif",
         fontSize: "80px",
-        color: "#ffffff",
-        stroke: "#00ff00",
+        color: "#d0f0ff",
+        stroke: "#0d4b6d",
         strokeThickness: 8,
         align: "center",
       })
@@ -67,10 +68,30 @@ export class GameOver extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on("pointerdown", () => this.restart())
       .on("pointerover", () => {
-        this.restartBtn.setScale(1.2);
+        this.restartBtn.setScale(1.2).setStyle({ color: "#adebeb" });
       })
       .on("pointerout", () => {
-        this.restartBtn.setScale(1).setStyle({ color: "#ffffff" });
+        this.restartBtn.setScale(1).setStyle({ color: "#d0f0ff" });
+      });
+
+    this.mainMenuBtn = this.add
+      .text(this.camera.width / 2, (this.camera.height / 2) + 300, "Main Menu", {
+        fontFamily: "sans-serif",
+        fontSize: "80px",
+        color: "#d0f0ff",
+        stroke: "#0d4b6d",
+        strokeThickness: 8,
+        align: "center",
+      })
+      .setOrigin(0.5)
+      .setDepth(100)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", () => this.changeScene())
+      .on("pointerover", () => {
+        this.mainMenuBtn.setScale(1.2).setStyle({ color: "#adebeb" });
+      })
+      .on("pointerout", () => {
+        this.mainMenuBtn.setScale(1).setStyle({ color: "#d0f0ff" });
       });
 
     EventBus.emit('current-scene-ready', this);

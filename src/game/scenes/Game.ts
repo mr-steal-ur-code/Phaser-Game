@@ -3,8 +3,13 @@ import { BarrelManager } from '../../controllers/barrelManager';
 import { EnemyManager } from '../../controllers/enemyManager';
 import { InputManager } from '../../controllers/inputManager';
 import { SoundManager } from '../../controllers/soundManager';
+import { clearBullets } from '../../utils/clearBullets';
+import { clearEnemies } from '../../utils/clearEnemies';
+import getRandomSoftColor from '../../utils/getRandomColor';
 import { CST } from '../CST';
 import { EventBus } from '../EventBus';
+import { bossIncomingText } from '../text/bossText';
+import { gameLevelText, gameScoreText, updateGameScoreText } from '../text/gameText';
 
 export class Game extends Phaser.Scene {
   camera: Phaser.Cameras.Scene2D.Camera;
@@ -57,10 +62,7 @@ export class Game extends Phaser.Scene {
     this.speed = 1000;
   }
 
-  create(data: {
-    bulletSpeed: number, fireRate: number, gunCount: number, totalEnemiesKilled: number, level: number;
-    score: number
-  }) {
+  create(data: SceneData) {
     this.isGameOver = false;
     this.bulletSpeed = data?.bulletSpeed || 1000;
     this.fireRate = data?.fireRate || 1000;
@@ -70,58 +72,29 @@ export class Game extends Phaser.Scene {
     this.score = data?.score || 0;
     this.level = data?.level || 1;
     this.camera = this.cameras.main;
-    this.camera.setBackgroundColor("#c6c6c6");
     this.enemySize = this.enemyCountPerLevel[this.level] || this.level * 10;
     this.barrelsDestroyed = 0;
+    this.camera.setBackgroundColor(getRandomSoftColor());
 
+    this.background = this.add?.image?.(500, 1420, 'background');
+    this.background?.setAlpha(0.5);
 
-    this.background = this.add.image(500, 1420, 'background');
-    this.background.setAlpha(0.5);
+    if (!this.sound.locked) {
+      SoundManager?.playGameMusic(this);
+    }
 
-    SoundManager.playGameMusic(this);
-
-    const levelText = this.add
-      .text(this.camera.width / 2, -100, `Level ${this.level}`, {
-        fontFamily: "Arial Black",
-        fontSize: "120px",
-        color: "#ffffff",
-        stroke: "#800080",
-        strokeThickness: 8,
-        align: "center",
+    else {
+      this.sound.unlock();
+      this.sound.once(Phaser.Sound.Events.UNLOCKED, () => {
+        SoundManager?.playGameMusic(this);
       })
-      .setOrigin(0.5);
+    }
 
-    this.tweens.add({
-      targets: levelText,
-      y: this.camera.height / 2,
-      duration: 800,
-      ease: "Power2",
-      onComplete: () => {
-        this.time.delayedCall(1600, () => {
-          this.tweens.add({
-            targets: levelText,
-            y: this.camera.height + 100,
-            duration: 800,
-            ease: "Power2",
-            onComplete: () => {
-              levelText.destroy();
-            },
-          });
-        });
-      },
-    });
-
-    this.scoreText = this.add.text(250, 50, `Score: ${this.score}`, {
-      fontFamily: 'Arial Black',
-      fontSize: 54,
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 8,
-      align: 'center'
-    }).setOrigin(0.5).setDepth(100);
+    gameLevelText(this, this.level);
+    this.scoreText = gameScoreText(this, this.score);
 
     // Create the character
-    this.character = this.physics.add.sprite(500, 1700, 'character');
+    this.character = this.physics.add.sprite(data?.charX || 500, data?.charY || 1650, 'character');
 
     this.inputManager = new InputManager(this);
 
@@ -177,8 +150,8 @@ export class Game extends Phaser.Scene {
 
     this.physics.add.collider(this.enemies, this.bullets, this.onEnemyShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
 
-    AnimationManager.explodeAnimation(this)
-    AnimationManager.walkAnimation(this)
+    AnimationManager?.explodeAnimation(this)
+    AnimationManager?.walkAnimation(this)
 
     EventBus.emit('current-scene-ready', this);
   }
@@ -192,19 +165,19 @@ export class Game extends Phaser.Scene {
 
     if (this.accumulatedTime >= 500) {
       this.accumulatedTime = 0;
-      this.barrels.getChildren().forEach((barrel: Phaser.GameObjects.GameObject) => {
+      this.barrels?.getChildren()?.forEach?.((barrel: Phaser.GameObjects.GameObject) => {
         if (barrel instanceof Phaser.Physics.Arcade.Sprite) {
           if (barrel.y > this.cameras.main.height + barrel.height) {
-            this.barrelManager.recycleBarrel(barrel);
+            this.barrelManager?.recycleBarrel(barrel);
             const remainingBarrels = this.maxBarrelCount - this.barrelsDestroyed;
-            this.time.delayedCall(5000, () => {
-              this.barrelManager.generateBarrels(this, this.fireRate, this.bulletSpeed, this.level, remainingBarrels)
+            this.time?.delayedCall(5000, () => {
+              this.barrelManager?.generateBarrels(this, this.fireRate, this.bulletSpeed, this.level, remainingBarrels)
             }, [], this);
           }
 
-          const barrelHpText = barrel.getData("hpText") as Phaser.GameObjects.Text | undefined;
+          const barrelHpText = barrel?.getData("hpText") as Phaser.GameObjects.Text | undefined;
           if (barrelHpText) {
-            barrelHpText.setPosition(barrel.x, barrel.y - barrel.height / 2 - 10);
+            barrelHpText?.setPosition(barrel.x, barrel.y - barrel.height / 2 - 10);
           }
         }
       });
@@ -243,18 +216,18 @@ export class Game extends Phaser.Scene {
     this.character.x = Phaser.Math.Clamp(this.character.x, 0, this.camera.width);
     this.character.y = Phaser.Math.Clamp(this.character.y, 0, this.camera.height);
 
-    this.barrels.getChildren().forEach((barrel) => {
+    this.barrels?.getChildren()?.forEach((barrel) => {
       if (barrel instanceof Phaser.Physics.Arcade.Sprite) {
-        const barrelHpText = barrel.getData('hpText');
+        const barrelHpText = barrel?.getData('hpText');
 
         if (barrelHpText) {
           const currentHp = parseInt(barrelHpText._text, 10);
           if (currentHp <= 0) {
-            barrelHpText.setActive(false).setVisible(false);
-            barrel.setActive(false).setVisible(false);
-            this.barrels.killAndHide(barrel);
+            barrelHpText?.setActive(false)?.setVisible(false);
+            barrel?.setActive(false).setVisible(false);
+            this.barrels?.killAndHide(barrel);
           } else {
-            barrelHpText.setPosition(barrel.x, barrel.y - barrel.height / 2 + 14);
+            barrelHpText?.setPosition(barrel.x, barrel.y - barrel.height / 2 + 14);
           }
         }
       }
@@ -319,7 +292,7 @@ export class Game extends Phaser.Scene {
 
     if (enemy.getData("canBeHit")) {
       this.score += 50;
-      this.scoreText.setText(`Score: ${this.score}`);
+      updateGameScoreText(this.scoreText, this.score);
 
       SoundManager.playBloodsplatSound(this)
 
@@ -343,9 +316,10 @@ export class Game extends Phaser.Scene {
         this.clearGame();
 
         if (this.level % 5 === 0) {
-          this.time.delayedCall(1000, this.bossScene, [], this);
+          bossIncomingText(this);
+          this.time.delayedCall(3000, this.bossScene, [], this);
         } else {
-          this.time.delayedCall(1000, this.nextLevel, [], this);
+          this.time.delayedCall(500, this.nextLevel, [], this);
         }
       }
     }
@@ -360,13 +334,13 @@ export class Game extends Phaser.Scene {
   }
 
   fireBullet() {
-    SoundManager.playShootSound(this);
+    SoundManager?.playShootSound(this);
     for (let i = 0; i < this.gunCount; i++) {
-      const bullet = this.bullets.get(this.character.x + (i - Math.floor(this.gunCount / 2)) * 20, this.character.y);
+      const bullet = this.bullets?.get(this.character.x + (i - Math.floor(this.gunCount / 2)) * 20, this.character.y);
       if (bullet) {
-        bullet.setActive(true).setVisible(true);
+        bullet?.setActive(true)?.setVisible(true);
         const angleOffset = (i - Math.floor(this.gunCount / 2)) * 3;
-        this.physics.velocityFromAngle(-90 + angleOffset, this.bulletSpeed, bullet.body.velocity);
+        this.physics?.velocityFromAngle(-90 + angleOffset, this.bulletSpeed, bullet.body.velocity);
       }
     }
   }
@@ -375,16 +349,16 @@ export class Game extends Phaser.Scene {
     let timeUntilNextFire = this.fireRate;
 
     if (this.fireRateEvent) {
-      const elapsed = this.fireRate - (this.fireRateEvent.getElapsed() % this.fireRate);
-      timeUntilNextFire = Math.min(elapsed, this.fireRate);
-      this.fireRateEvent.remove();
+      const elapsed = this.fireRate - (this.fireRateEvent?.getElapsed() % this.fireRate);
+      timeUntilNextFire = Math?.min(elapsed, this.fireRate);
+      this.fireRateEvent?.remove();
     }
 
-    this.time.addEvent({
+    this.time?.addEvent({
       delay: timeUntilNextFire,
       callback: () => {
         this.fireBullet();
-        this.fireRateEvent = this.time.addEvent({
+        this.fireRateEvent = this.time?.addEvent({
           delay: this.fireRate,
           callback: this.fireBullet,
           callbackScope: this,
@@ -425,7 +399,9 @@ export class Game extends Phaser.Scene {
       gunCount: this.gunCount,
       totalEnemiesKilled: this.totalEnemiesKilled,
       score: this.score,
-      level: this.level + 1
+      level: this.level + 1,
+      charY: this.character.y,
+      charX: this.character.x
     });
   }
 
@@ -444,18 +420,9 @@ export class Game extends Phaser.Scene {
       this.barrelSpawnEvent.destroy();
     }
 
-    this.bullets.getChildren().forEach((bullet: Phaser.GameObjects.GameObject) => {
-      if (bullet instanceof Phaser.Physics.Arcade.Sprite) {
-        bullet.setActive(false).setVisible(false).disableBody(true, true);
-      }
-    })
+    clearBullets(this.bullets)
     this.enemyManager.freezeEnemies();
-
-    this.enemies.getChildren().forEach((enemy: Phaser.GameObjects.GameObject) => {
-      if (enemy instanceof Phaser.Physics.Arcade.Sprite) {
-        enemy.setActive(false).setVelocity(0, 0);
-      }
-    })
+    clearEnemies(this.enemies);
 
     this.barrelManager.freezeBarrels();
   }
