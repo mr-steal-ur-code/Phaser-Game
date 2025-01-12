@@ -50,6 +50,15 @@ export class AnimationManager {
     });
   }
 
+  static bossDieAnimation(scene: Phaser.Scene) {
+    scene.anims.create({
+      key: 'bossDie',
+      frames: scene.anims.generateFrameNumbers('bossDeath', { start: 0, end: 6 }),
+      frameRate: 8,
+      repeat: 0,
+    });
+  }
+
   static bloodsplatAnimation(scene: Phaser.Scene, enemySprite: Phaser.Physics.Arcade.Sprite) {
     const bloodSplat = scene.add.sprite(enemySprite.x, enemySprite.y, 'bloodsplat');
     bloodSplat.setScale(1.5).setAlpha(1);

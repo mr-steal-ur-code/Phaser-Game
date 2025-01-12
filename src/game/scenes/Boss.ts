@@ -7,20 +7,23 @@ import { EventBus } from "../EventBus";
 
 
 export class Boss extends Phaser.Scene {
+  private backgroundBar: Phaser.GameObjects.Graphics;
+  private healthBar: Phaser.GameObjects.Graphics;
   camera: Phaser.Cameras.Scene2D.Camera;
+  webCollider: Phaser.Physics.Arcade.Collider | null;
   isGameOver: boolean = false;
   bulletSpeed: number;
   fireRate: number;
   gunCount: number;
   character: Phaser.Physics.Arcade.Sprite;
   boss: Phaser.Physics.Arcade.Sprite;
+  bossManager: BossManager;
   bullets: Phaser.Physics.Arcade.Group;
   webShots: Phaser.Physics.Arcade.Group;
   totalEnemiesKilled: number;
   score: number;
   inputManager: InputManager;
   fireRateEvent: Phaser.Time.TimerEvent;
-  webShotCollider: Phaser.Physics.Arcade.Collider | null;
   level: number;
 
   constructor() {
@@ -32,9 +35,9 @@ export class Boss extends Phaser.Scene {
     score: number
   }) {
     this.camera = this.cameras.main;
-    this.bulletSpeed = data?.bulletSpeed || 500;
-    this.fireRate = data?.fireRate || 500;
-    this.gunCount = data?.gunCount || 2;
+    this.bulletSpeed = data?.bulletSpeed || 1000;
+    this.fireRate = data?.fireRate || 1000;
+    this.gunCount = data?.gunCount || 1;
     this.totalEnemiesKilled = data?.totalEnemiesKilled || 0;
     this.score = data?.score || 0;
     this.level = data?.level || 5;
@@ -48,15 +51,25 @@ export class Boss extends Phaser.Scene {
 
     this.webShots = this.physics.add.group({
       defaultKey: 'web_shot',
-      maxSize: 10,
+      maxSize: Infinity,
     });
 
-    this.webShotCollider = this.physics.add.collider(this.webShots, this.character, this.onWebHit, undefined, this);
+    this.backgroundBar = this.add.graphics().fillStyle(0xff0000, 1).fillRect(0, 20, this.cameras.main.width, 20);
+
+    this.healthBar = this.add.graphics().fillStyle(0x00ff00, 1).fillRect(0, 20, this.cameras.main.width, 20);
+
+    this.bossManager = new BossManager(this.webShots)
+    this.bossManager.spawnBoss(this, this.cameras.main.width, this.level);
+
+    const boss = this.bossManager.getBoss();
+    if (boss) {
+      this.physics.add.collider(boss, this.bullets, this.onBossShoot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+    }
+
+    this.webCollider = this.physics.add.collider(this.webShots, this.character, this.onWebHit, undefined, this);
 
     this.inputManager = new InputManager(this);
 
-    const bossManager = new BossManager(this.boss, this.webShots)
-    bossManager.spawnBoss(this, this.cameras.main.width);
 
     this.time.addEvent({
       delay: 16,
@@ -71,6 +84,8 @@ export class Boss extends Phaser.Scene {
       loop: true,
     });
 
+    AnimationManager.explodeAnimation(this);
+
     EventBus.emit('current-scene-ready', this);
   }
 
@@ -78,6 +93,18 @@ export class Boss extends Phaser.Scene {
     if (this.isGameOver) {
       return;
     }
+
+    // Update Boss Health Bar when hp data changes
+    if (this.bossManager) {
+      const currentHp = this.bossManager.getBossHp();
+      const maxHp = this.bossManager.getBossMaxHp();
+
+      const healthPercentage = Phaser.Math.Clamp(currentHp / maxHp, 0, 1);
+      this.healthBar.clear();
+      this.healthBar.fillStyle(0x00ff00, 1);
+      this.healthBar.fillRect(0, 20, this.cameras.main.width * healthPercentage, 20);
+    }
+
     const velocity = 1000 * (delta / 1000);
     const smoothingFactor = 0.3;
 
@@ -125,11 +152,25 @@ export class Boss extends Phaser.Scene {
   }
 
   onWebHit() {
-    SoundManager.playShootSound(this);
-    if (this.webShotCollider)
-      this.physics.world.removeCollider(this.webShotCollider);
-    this.webShotCollider = null;
-    this.nextLevel();
+    this.bossManager.bossWin();
+    this.endGame();
+    console.log('A web hit the character!',);
+  }
+
+  onBossShoot(_boss: Phaser.GameObjects.GameObject, bullet: Phaser.GameObjects.GameObject,) {
+    const bulletSprite = bullet as Phaser.Physics.Arcade.Sprite;
+    const bossHp = this.bossManager.getBossHp();
+
+    bulletSprite.setActive(false).setVisible(false);
+    this.bossManager.setBossHp(1);
+
+    if (bossHp <= 0) {
+      if (this.fireRateEvent) {
+        this.fireRateEvent.destroy();
+      }
+      this.bossManager.bossDeath(this);
+      this.time.delayedCall(5000, () => this.nextLevel());
+    }
   }
 
   nextLevel() {
@@ -147,6 +188,13 @@ export class Boss extends Phaser.Scene {
   endGame() {
     this.character.setVelocity(0, 0);
     this.isGameOver = true;
+
+    if (this.webCollider)
+      this.physics.world.removeCollider(this.webCollider);
+    this.webCollider = null;
+    if (this.fireRateEvent) {
+      this.fireRateEvent.destroy();
+    }
 
     this.bullets.getChildren().forEach((bullet: Phaser.GameObjects.GameObject) => {
       if (bullet instanceof Phaser.Physics.Arcade.Sprite) {

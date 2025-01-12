@@ -54,6 +54,10 @@ export class Preloader extends Scene {
       frameWidth: 110,
       frameHeight: 74,
     });
+    this.load.spritesheet('bossDeath', 'giant_spider_death.png', {
+      frameWidth: 116,
+      frameHeight: 86,
+    });
     this.load.image("web_shot", "web_shot.png");
     this.load.image('bullet', 'bullet.png');
     this.load.image('bloodsplat', 'bloodsplat.png');

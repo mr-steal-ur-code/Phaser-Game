@@ -125,23 +125,6 @@ export class Game extends Phaser.Scene {
 
     this.inputManager = new InputManager(this);
 
-    // Automatically fire bullets at the specified fire rate
-    this.time.delayedCall(4000, () => {
-      this.fireRateEvent = this.time.addEvent({
-        delay: this.fireRate,
-        callback: this.fireBullet,
-        callbackScope: this,
-        loop: true,
-      })
-    })
-
-    this.enemySpawnEvent = this.time.addEvent({
-      delay: 5000,
-      callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, this.enemySize),
-      callbackScope: this,
-      loop: true,
-    })
-
     this.bullets = this.physics.add.group({
       defaultKey: 'bullet',
       maxSize: Infinity,
@@ -162,6 +145,23 @@ export class Game extends Phaser.Scene {
     this.barrelManager = new BarrelManager(this.barrels, this.barrelSpeed);
 
     this.enemyManager = new EnemyManager(this.enemies, 200)
+
+    // Automatically fire bullets at the specified fire rate
+    this.time.delayedCall(4000, () => {
+      this.fireRateEvent = this.time.addEvent({
+        delay: this.fireRate,
+        callback: this.fireBullet,
+        callbackScope: this,
+        loop: true,
+      })
+    })
+
+    this.enemySpawnEvent = this.time.addEvent({
+      delay: 5000 + this.enemyManager.getEnemySpeed(),
+      callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, this.enemySize),
+      callbackScope: this,
+      loop: true,
+    })
 
     this.time.delayedCall(7000, () => {
       const remainingBarrels = this.maxBarrelCount - this.barrelsDestroyed;
@@ -265,6 +265,9 @@ export class Game extends Phaser.Scene {
     if (this.barrelCollider)
       this.physics.world.removeCollider(this.barrelCollider);
     this.barrelCollider = null;
+    if (this.enemyCollider)
+      this.physics.world.removeCollider(this.enemyCollider);
+    this.enemyCollider = null;
     console.log('A barrel hit the character!',);
     this.endGame();
   }
@@ -329,7 +332,7 @@ export class Game extends Phaser.Scene {
         this.enemySpawnEvent.destroy();
 
         this.enemySpawnEvent = this.time.addEvent({
-          delay: 100,
+          delay: 5000 + this.enemyManager.getEnemySpeed(),
           callback: () => this.enemyManager.spawnEnemies(this, this.camera.width, (this.enemySize - this.enemiesKilled)),
           callbackScope: this,
           loop: true,
@@ -337,41 +340,12 @@ export class Game extends Phaser.Scene {
       }
 
       if (this.enemiesKilled >= this.enemySize) {
-        const levelCompleteText = this.add
-          .text(this.camera.width / 2, -100, `Level ${this.level} \nComplete`, {
-            fontFamily: "Arial Black",
-            fontSize: "120px",
-            color: "#ffffff",
-            stroke: "#800080",
-            strokeThickness: 8,
-            align: "left",
-          })
-          .setOrigin(0.5);
-
-        this.tweens.add({
-          targets: levelCompleteText,
-          y: this.camera.height / 2,
-          duration: 400,
-          ease: "Power2",
-          onComplete: () => {
-            this.time.delayedCall(900, () => {
-              this.tweens.add({
-                targets: levelCompleteText,
-                y: this.camera.height + 100,
-                duration: 400,
-                ease: "Power2",
-                onComplete: () => {
-                  levelCompleteText.destroy();
-                },
-              });
-            });
-          },
-        });
+        this.clearGame();
 
         if (this.level % 5 === 0) {
-          this.time.delayedCall(2500, this.bossScene, [], this);
+          this.time.delayedCall(1000, this.bossScene, [], this);
         } else {
-          this.time.delayedCall(2500, this.nextLevel, [], this);
+          this.time.delayedCall(1000, this.nextLevel, [], this);
         }
       }
     }
@@ -422,28 +396,7 @@ export class Game extends Phaser.Scene {
   }
 
   endGame() {
-    this.character.setVelocity(0, 0);
-    this.isGameOver = true;
-
-    if (this.fireRateEvent) {
-      this.fireRateEvent.destroy();
-    }
-    if (this.enemySpawnEvent) {
-      this.enemySpawnEvent.destroy();
-    }
-    if (this.barrelSpawnEvent) {
-      this.barrelSpawnEvent.destroy();
-    }
-
-    this.bullets.getChildren().forEach((bullet: Phaser.GameObjects.GameObject) => {
-      if (bullet instanceof Phaser.Physics.Arcade.Sprite) {
-        bullet.setActive(false).setVisible(false).disableBody(true, true);
-      }
-    })
-
-    this.enemyManager.freezeEnemies()
-
-    this.barrelManager.freezeBarrels();
+    this.clearGame()
 
     AnimationManager.playExplosion(this, this.character.x, this.character.y, true)
     this.sound.stopByKey("main_game_music");
@@ -462,7 +415,6 @@ export class Game extends Phaser.Scene {
   }
 
   nextLevel() {
-    this.sound.stopAll();
     if (this.level > 5 && this.enemyManager.getEnemySpeed() < this.maxEnemySpeed) {
       this.enemyManager.setEnemySpeed(100);
     }
@@ -475,6 +427,37 @@ export class Game extends Phaser.Scene {
       score: this.score,
       level: this.level + 1
     });
+  }
+
+  clearGame() {
+    this.sound.stopAll();
+    this.character.setVelocity(0, 0);
+    this.isGameOver = true;
+
+    if (this.fireRateEvent) {
+      this.fireRateEvent.destroy();
+    }
+    if (this.enemySpawnEvent) {
+      this.enemySpawnEvent.destroy();
+    }
+    if (this.barrelSpawnEvent) {
+      this.barrelSpawnEvent.destroy();
+    }
+
+    this.bullets.getChildren().forEach((bullet: Phaser.GameObjects.GameObject) => {
+      if (bullet instanceof Phaser.Physics.Arcade.Sprite) {
+        bullet.setActive(false).setVisible(false).disableBody(true, true);
+      }
+    })
+    this.enemyManager.freezeEnemies();
+
+    this.enemies.getChildren().forEach((enemy: Phaser.GameObjects.GameObject) => {
+      if (enemy instanceof Phaser.Physics.Arcade.Sprite) {
+        enemy.setActive(false).setVelocity(0, 0);
+      }
+    })
+
+    this.barrelManager.freezeBarrels();
   }
 
   bossScene() {

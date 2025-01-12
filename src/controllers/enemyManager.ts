@@ -1,10 +1,12 @@
 export class EnemyManager {
   private enemies: Phaser.Physics.Arcade.Group;
   private enemySpeed: number;
+  private canEnemyMove: boolean;
 
   constructor(enemyGroup: Phaser.Physics.Arcade.Group, enemySpeed: number) {
     this.enemies = enemyGroup;
-    this.enemySpeed = enemySpeed
+    this.enemySpeed = enemySpeed;
+    this.canEnemyMove = true;
   }
 
   spawnEnemies(scene: Phaser.Scene, cameraWidth: number, enemySize: number) {
@@ -41,6 +43,7 @@ export class EnemyManager {
         scene.time.addEvent({
           delay: 16,
           callback: () => {
+            if (!this.canEnemyMove) return;
             oscillationTime += 0.016;
             const angle = 90 + ranNum * Math.sin(oscillationTime);
             scene.physics.velocityFromAngle(angle, this.enemySpeed, enemy.body.velocity);
@@ -62,8 +65,7 @@ export class EnemyManager {
   }
 
   freezeEnemies() {
-    console.log("get enemies: ", this.enemies.getChildren());
-
+    this.canEnemyMove = false;
     this.enemies.getChildren().forEach((enemy: Phaser.GameObjects.GameObject) => {
       if (enemy instanceof Phaser.Physics.Arcade.Sprite) {
         enemy.setAngularVelocity(0).setAngularAcceleration(0).setAngularDrag(0)
