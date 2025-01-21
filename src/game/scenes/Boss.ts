@@ -6,7 +6,7 @@ import { clearBullets } from "../../utils/clearBullets";
 import { clearWebShots } from "../../utils/clearWebShots";
 import { CST } from "../CST";
 import { EventBus } from "../EventBus";
-import { bossClearText } from "../text/bossText";
+import { bossBloodSplat, bossClearText } from "../text/bossText";
 
 
 export class Boss extends Phaser.Scene {
@@ -162,6 +162,8 @@ export class Boss extends Phaser.Scene {
 
 
     bulletSprite.destroy();
+    SoundManager.playGruntSound(this);
+    bossBloodSplat(this, this.bossManager.getBoss()!.x, this.bossManager.getBoss()!.y);
 
     if (this.bossManager.getBossHp() <= 0) {
       if (this.fireRateEvent) {

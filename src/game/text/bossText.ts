@@ -72,4 +72,27 @@ function bossIncomingText(scene: Phaser.Scene) {
   });
 }
 
-export { bossClearText, bossIncomingText }
+function bossBloodSplat(scene: Phaser.Scene, x: number, y: number) {
+  const graphics = scene.add.graphics();
+
+  graphics.fillStyle(0x00ff00, 1);
+
+  for (let i = 0; i < 5; i++) {
+    const offsetX = Phaser.Math.Between(-20, 20);
+    const offsetY = Phaser.Math.Between(-20, 20);
+    const radius = Phaser.Math.Between(5, 15);
+    graphics.fillCircle(x + offsetX, y + offsetY, radius);
+  }
+
+  scene.tweens.add({
+    targets: graphics,
+    alpha: 0,
+    duration: 500,
+    ease: 'Quad.easeOut',
+    onComplete: () => {
+      graphics.destroy();
+    },
+  });
+}
+
+export { bossClearText, bossIncomingText, bossBloodSplat }

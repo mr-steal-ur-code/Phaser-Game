@@ -20,6 +20,13 @@ export class SoundManager {
     });
   }
 
+  static playGruntSound(scene: Phaser.Scene) {
+    scene.sound.play('grunt', {
+      loop: false,
+      volume: .2
+    });
+  }
+
   static playExplosionSound(scene: Phaser.Scene, count: number) {
     let playCount = 0;
     const sound = scene.sound.add("explode", { volume: 0.7 });

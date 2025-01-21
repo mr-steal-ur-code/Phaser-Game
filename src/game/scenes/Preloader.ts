@@ -35,7 +35,7 @@ export class Preloader extends Scene {
     this.load.audio("splat", "bug_splat.mp3");
     this.load.audio("explode", "explode.mp3");
     this.load.audio("power_up", "power_up.mp3");
-    this.load.audio("menu_hover", "menu_hover.mp3");
+    this.load.audio("grunt", "angry_grunt.mp3");
 
     this.load.setPath('assets/sprites');
 
